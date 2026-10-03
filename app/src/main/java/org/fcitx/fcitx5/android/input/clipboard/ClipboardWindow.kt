@@ -54,6 +54,7 @@ import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.ClipboardSourceDeletionTarget
 import org.fcitx.fcitx5.android.utils.EventStateMachine
@@ -321,6 +322,12 @@ class ClipboardWindow(
                 service.lifecycleScope.launch {
                     promptDeleteAll(ClipboardManager.haveUnpinned(currentCategory))
                 }
+            }
+            searchButton.setOnClickListener {
+                service.inputView?.openClipboardSearch()
+            }
+            settingsButton.setOnClickListener {
+                AppUtil.launchMainToRoute(context, SettingsRoute.Clipboard)
             }
         }
     }

@@ -284,6 +284,11 @@ data object ClipboardAction : ButtonAction() {
         view: View?,
         onActionComplete: (() -> Unit)?
     ) {
+        val inputView = service.inputView
+        if (inputView != null && inputView.clipboardSearchActive) {
+            inputView.closeClipboardSearch()
+            return
+        }
         windowManager.attachWindow(ClipboardWindow())
     }
 }

@@ -556,6 +556,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
+        if (inputView?.handleClipboardSearchEvent(event) == true) {
+            if (event is FcitxEvent.KeyEvent && !event.data.states.virtual) {
+                cachedKeyEvents.remove(event.data.timestamp)
+            }
+            return
+        }
         when (event) {
             is FcitxEvent.ReadyEvent -> {
                 resetCandidatePagingModeCache()
@@ -1060,9 +1066,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
         if (inputView?.isPhysicalCandidateBarMode == true) {
-            val location = IntArray(2)
-            inputView.keyboardView.getLocationInWindow(location)
-            val top = location[1]
+            val top = inputView.getDockedContentTop()
 
             outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
             inputView.getDockedKeyboardRegion(outInsets.touchableRegion)
@@ -1079,9 +1083,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
         if (inputDeviceManager.isVirtualKeyboard) {
-            val location = IntArray(2)
-            inputView?.keyboardView?.getLocationInWindow(location)
-            val top = location[1]
+            val top = inputView?.getDockedContentTop() ?: 0
             
             // In fixed mode, use TOUCHABLE_INSETS_REGION to explicitly define touchable area
             // to avoid any ambiguity about full screen blocking.

@@ -136,6 +136,33 @@ interface ClipboardDao {
 
     @Query(
         "SELECT * FROM ${ClipboardEntry.TABLE_NAME} " +
+            "WHERE source=:source AND pinned=0 AND deleted=0 " +
+            "AND text NOT LIKE 'content://%' AND text NOT LIKE 'file://%' " +
+            "AND instr(lower(text), lower(:query)) > 0 " +
+            "ORDER BY timestamp DESC"
+    )
+    suspend fun searchTextEntriesBySource(source: String, query: String): List<ClipboardEntry>
+
+    @Query(
+        "SELECT * FROM ${ClipboardEntry.TABLE_NAME} " +
+            "WHERE deleted=0 " +
+            "AND text NOT LIKE 'content://%' AND text NOT LIKE 'file://%' " +
+            "AND instr(lower(text), lower(:query)) > 0 " +
+            "ORDER BY timestamp DESC"
+    )
+    suspend fun searchTextEntries(query: String): List<ClipboardEntry>
+
+    @Query(
+        "SELECT * FROM ${ClipboardEntry.TABLE_NAME} " +
+            "WHERE pinned=1 AND deleted=0 " +
+            "AND text NOT LIKE 'content://%' AND text NOT LIKE 'file://%' " +
+            "AND instr(lower(text), lower(:query)) > 0 " +
+            "ORDER BY timestamp DESC"
+    )
+    suspend fun searchFavoriteTextEntries(query: String): List<ClipboardEntry>
+
+    @Query(
+        "SELECT * FROM ${ClipboardEntry.TABLE_NAME} " +
             "WHERE source=:source AND text NOT LIKE 'content://%' AND text NOT LIKE 'file://%' " +
             "AND pinned=0 AND deleted=0"
     )
@@ -164,6 +191,9 @@ interface ClipboardDao {
             "WHERE (text LIKE 'content://%' OR text LIKE 'file://%') AND deleted=0"
     )
     suspend fun getAllMediaEntries(): List<ClipboardEntry>
+
+    @Query("UPDATE ${ClipboardEntry.TABLE_NAME} SET pinned=:pinned WHERE id in (:ids)")
+    suspend fun updatePinStatusForIds(ids: List<Int>, pinned: Boolean)
 
     @Query("UPDATE ${ClipboardEntry.TABLE_NAME} SET deleted=1 WHERE id in (:ids)")
     suspend fun markAsDeleted(vararg ids: Int)

@@ -28,7 +28,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.loadThumbnailBitmap
-import org.fcitx.fcitx5.android.utils.queryFileName
+import org.fcitx.fcitx5.android.utils.resolveClipboardUriFileName
 import splitties.resources.styledColor
 import kotlin.math.min
 
@@ -39,7 +39,7 @@ abstract class ClipboardAdapter(
 ) : PagingDataAdapter<ClipboardEntry, ClipboardAdapter.ViewHolder>(diffCallback) {
 
     companion object {
-        private val thumbnailCache = object : LruCache<String, Bitmap>(24) {}
+        internal val thumbnailCache = object : LruCache<String, Bitmap>(24) {}
         private val cnMainlandMobilePattern = Regex("^1[3-9]\\d{9}$")
 
         private val diffCallback = object : DiffUtil.ItemCallback<ClipboardEntry>() {
@@ -96,6 +96,23 @@ abstract class ClipboardAdapter(
                 }
             }
         }
+
+        internal fun compactUriLabel(context: Context, entry: ClipboardEntry): String {
+            if (entry.type.startsWith("image/")) return ""
+            val uri = runCatching { Uri.parse(entry.text) }.getOrNull()
+            val fileName = uri?.let { resolveClipboardUriFileName(context, it) }
+            return if (fileName.isNullOrBlank()) {
+                context.getString(R.string.clipboard_entry_file)
+            } else {
+                context.getString(R.string.clipboard_entry_file_named, fileName)
+            }
+        }
+
+        internal fun imagePreviewKey(entry: ClipboardEntry): String? =
+            if (entry.isUriEntry() && entry.type.startsWith("image/")) entry.text else null
+
+        internal suspend fun loadImagePreview(context: Context, entry: ClipboardEntry): Bitmap? =
+            entry.loadThumbnailBitmap(context)
     }
 
     private var popupMenu: PopupMenu? = null
@@ -122,14 +139,14 @@ abstract class ClipboardAdapter(
             val searchQuery = entry.searchableQuery()
             val dialNumber = entry.dialableCnMobileNumber()
             val splittableText = entry.splittableText()
-            val thumbnailKey = entry.imagePreviewKey()
+            val thumbnailKey = imagePreviewKey(entry)
             val cachedThumbnail = thumbnailKey?.let { thumbnailCache.get(it) }
             holder.thumbnailJob?.cancel()
             holder.boundThumbnailKey = thumbnailKey
             setEntry(displayText, entry.pinned, cachedThumbnail)
             if (thumbnailKey != null && cachedThumbnail == null) {
                 holder.thumbnailJob = scope.launch {
-                    val bitmap = entry.loadThumbnailBitmap(ctx)
+                    val bitmap = loadImagePreview(ctx, entry)
                     if (bitmap != null) {
                         thumbnailCache.put(thumbnailKey, bitmap)
                     }
@@ -296,33 +313,6 @@ abstract class ClipboardAdapter(
 
     abstract fun onDelete(id: Int)
 
-    private fun compactUriLabel(context: Context, entry: ClipboardEntry): String {
-        val uri = runCatching { Uri.parse(entry.text) }.getOrNull()
-        val fileName = uri?.let { resolveUriFileName(context, it) }
-        return if (entry.type.startsWith("image/")) {
-            ""
-        } else {
-            if (fileName.isNullOrBlank()) {
-                context.getString(R.string.clipboard_entry_file)
-            } else {
-                context.getString(R.string.clipboard_entry_file_named, fileName)
-            }
-        }
-    }
-
-    private fun resolveUriFileName(context: Context, uri: Uri): String? {
-        return when (uri.scheme) {
-            "content" -> context.contentResolver.queryFileName(uri)
-                ?: uri.lastPathSegment
-                ?: uri.path
-
-            "file" -> uri.lastPathSegment ?: uri.path
-            else -> uri.lastPathSegment ?: uri.path
-        }?.let { Uri.decode(it).substringAfterLast('/').substringAfterLast(':') }
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-    }
-
     private fun ClipboardEntry.openableLinkUri(): Uri? {
         if (isUriEntry()) return null
         val raw = text.trim()
@@ -371,10 +361,6 @@ abstract class ClipboardAdapter(
         }
         if (!normalized.all { it.isDigit() }) return null
         return normalized.takeIf { cnMainlandMobilePattern.matches(it) }
-    }
-
-    private fun ClipboardEntry.imagePreviewKey(): String? {
-        return if (isUriEntry() && type.startsWith("image/")) text else null
     }
 
     private fun ClipboardEntry.viewableImageUri(): Uri? {

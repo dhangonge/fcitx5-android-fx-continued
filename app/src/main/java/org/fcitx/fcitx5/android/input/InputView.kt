@@ -44,8 +44,11 @@ import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent
+import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
+import org.fcitx.fcitx5.android.data.clipboard.clipboardSearchCommitText
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.SplitKeyboardStateManager
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceProvider
@@ -54,6 +57,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import com.google.android.flexbox.FlexboxLayout
 import com.google.android.flexbox.FlexWrap
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
+import org.fcitx.fcitx5.android.input.clipboard.ClipboardSearchOverlay
 import org.fcitx.fcitx5.android.utils.DarkenColorFilter
 import org.fcitx.fcitx5.android.input.config.ConfigChangeListener
 import org.fcitx.fcitx5.android.input.config.ConfigProviders
@@ -69,6 +73,7 @@ import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.BaseKeyboard
 import org.fcitx.fcitx5.android.input.keyboard.KeyView
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
+import org.fcitx.fcitx5.android.input.keyboard.MacroAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.DisplayMetrics
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.RealSize
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -85,6 +90,7 @@ import android.view.MotionEvent
 import androidx.core.widget.NestedScrollView
 import android.util.TypedValue
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.lifecycle.lifecycleScope
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.unset
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
@@ -1537,6 +1543,36 @@ class InputView(
     private val advancedPrefs = AppPrefs.getInstance().advanced
     private val keyboardHeightPercentBase = advancedPrefs.keyboardHeightPercentBase
 
+    private val clipboardPrefs = AppPrefs.getInstance().clipboard
+    private val clipboardMaskSensitive by clipboardPrefs.clipboardMaskSensitive
+    private val clipboardEntryRadius by ThemeManager.prefs.clipboardEntryRadius
+    private var restoreFloatingAfterClipboardSearch = false
+    private val clipboardSearchOverlay by lazy {
+        ClipboardSearchOverlay(
+            context = themedContext,
+            theme = theme,
+            entryRadius = context.dp(clipboardEntryRadius.toFloat()),
+            maskSensitive = clipboardMaskSensitive,
+            scope = service.lifecycleScope,
+            onClose = ::closeClipboardSearch,
+            onCursorPositioned = { fcitx.runIfReady { reset() } },
+            onEntryClick = { entry, pinned ->
+                val committed = if (entry.isUriEntry()) {
+                    service.commitClipboardEntry(entry.text)
+                } else {
+                    service.commitClipboardEntry(clipboardSearchCommitText(entry, pinned))
+                    true
+                }
+                if (committed) {
+                    service.lifecycleScope.launch { ClipboardManager.markUsed(entry.id) }
+                }
+            }
+        ).also { it.root.visibility = GONE }
+    }
+
+    val clipboardSearchActive: Boolean
+        get() = clipboardSearchOverlay.root.visibility == VISIBLE
+
     private val keyboardSizePrefs = listOf(
         keyboardHeightPercent,
         keyboardHeightPercentLandscape,
@@ -2460,6 +2496,12 @@ class InputView(
             }
         }
 
+        if (clipboardSearchActive) {
+            val searchRect = Rect()
+            clipboardSearchOverlay.root.getHitRect(searchRect)
+            rect.union(searchRect)
+        }
+
         // No extra inset needed now as handles provide padding and coverage
 
         outRegion.set(rect)
@@ -2931,6 +2973,12 @@ class InputView(
             centerHorizontally()
             bottomOfParent()
         })
+        add(clipboardSearchOverlay.root, lParams(matchParent, 0) {
+            topOfParent()
+            bottomToTop = keyboardView.id
+            startOfParent()
+            endOfParent()
+        })
         add(floatingRightHandle, lParams(dp(10), dp(10)) {
             startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             topToTop = ConstraintLayout.LayoutParams.PARENT_ID
@@ -3279,10 +3327,102 @@ class InputView(
     /**
      * called when [InputView] is about to show, or restart
      */
+    /**
+     * Top of the docked content that the app should lay out above.
+     * When clipboard search is open the overlay covers the area above the keyboard too.
+     */
+    fun getDockedContentTop(): Int {
+        val target = if (clipboardSearchActive) clipboardSearchOverlay.root else keyboardView
+        val location = IntArray(2)
+        target.getLocationInWindow(location)
+        return location[1]
+    }
+
+    fun openClipboardSearch() {
+        if (clipboardSearchActive) return
+        windowManager.attachWindow(KeyboardWindow)
+        restoreFloatingAfterClipboardSearch = isFloating
+        if (isFloating) toggleFloatingMode()
+        fcitx.runIfReady { reset() }
+        clipboardSearchOverlay.open()
+        clipboardSearchOverlay.root.visibility = VISIBLE
+        clipboardSearchOverlay.root.bringToFront()
+        service.window.window?.decorView?.requestLayout()
+    }
+
+    fun closeClipboardSearch() {
+        if (!clipboardSearchActive) return
+        clipboardSearchOverlay.close()
+        clipboardSearchOverlay.root.visibility = GONE
+        fcitx.runIfReady { reset() }
+        if (restoreFloatingAfterClipboardSearch && !isFloating) toggleFloatingMode()
+        restoreFloatingAfterClipboardSearch = false
+        service.window.window?.decorView?.requestLayout()
+    }
+
+    fun handleClipboardSearchEvent(event: FcitxEvent<*>): Boolean {
+        if (!clipboardSearchActive) return false
+        if (clipboardSearchOverlay.selectionMode) return true
+        when (event) {
+            is FcitxEvent.CommitStringEvent -> {
+                clipboardSearchOverlay.commit(event.data.text, event.data.cursor)
+                return true
+            }
+            is FcitxEvent.ClientPreeditEvent -> clipboardSearchOverlay.setPreedit(event.data)
+            is FcitxEvent.DeleteSurroundingEvent -> {
+                clipboardSearchOverlay.deleteSurrounding(event.data.before, event.data.after)
+                return true
+            }
+            is FcitxEvent.KeyEvent -> {
+                if (event.data.up) return true
+                when (event.data.sym.sym) {
+                    FcitxKeyMapping.FcitxKey_BackSpace -> clipboardSearchOverlay.backspace()
+                    FcitxKeyMapping.FcitxKey_Delete -> clipboardSearchOverlay.delete()
+                    FcitxKeyMapping.FcitxKey_Left -> clipboardSearchOverlay.moveCursor(-1)
+                    FcitxKeyMapping.FcitxKey_Right -> clipboardSearchOverlay.moveCursor(1)
+                    FcitxKeyMapping.FcitxKey_Return -> Unit
+                    else -> if (event.data.unicode > 0) {
+                        clipboardSearchOverlay.commit(Character.toString(event.data.unicode))
+                    }
+                }
+                return true
+            }
+            else -> return false
+        }
+        return false
+    }
+
+    fun handleClipboardSearchKeyAction(action: KeyAction): Boolean {
+        if (!clipboardSearchActive) return false
+        if (clipboardSearchOverlay.selectionMode) {
+            // Only swallow actions that would type into the (hidden) search box,
+            // so toolbar buttons and layout switches keep working.
+            return when (action) {
+                is KeyAction.CommitAction,
+                is KeyAction.FcitxKeyAction,
+                is KeyAction.SymAction,
+                is MacroAction -> true
+
+                else -> false
+            }
+        }
+        return when (action) {
+            is KeyAction.CommitAction -> {
+                clipboardSearchOverlay.commit(action.text)
+                true
+            }
+            is KeyAction.FcitxKeyAction,
+            is KeyAction.SymAction,
+            is KeyAction.LayoutSwitchAction -> false
+            else -> true
+        }
+    }
+
     fun startInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean = false) {
         if (isAdjustingMode) {
             exitAdjustingMode()
         }
+        if (clipboardSearchActive) closeClipboardSearch()
         hideButtonsAdjustingOverlay()
         keyboardWindow.checkAndApplyFontRefresh()
         broadcaster.onStartInput(info, capFlags)
@@ -3318,6 +3458,7 @@ class InputView(
                 broadcaster.onPagedCandidateUpdate(it.data)
             }
             is FcitxEvent.ClientPreeditEvent -> {
+                if (clipboardSearchActive) return
                 preeditEmptyState.updatePreeditEmptyState(clientPreedit = it.data)
                 broadcaster.onClientPreeditUpdate(it.data)
             }
@@ -3463,6 +3604,7 @@ class InputView(
 
     override fun onDetachedFromWindow() {
         windowManager.onWindowChanged = null
+        if (clipboardSearchActive) clipboardSearchOverlay.close()
         advancedPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
         candidatesPrefs.unregisterOnChangeListener(onCandidatePreferenceChangeListener)

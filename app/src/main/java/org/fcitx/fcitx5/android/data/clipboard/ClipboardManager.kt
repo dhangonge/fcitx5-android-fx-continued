@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.utils.ClipboardUriStore.toClipboardUriOrNull
 import org.fcitx.fcitx5.android.utils.WeakHashSet
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.clipboardManager
+import org.fcitx.fcitx5.android.utils.resolveClipboardUriFileName
 import timber.log.Timber
 
 object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
@@ -255,6 +256,77 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     suspend fun pin(id: Int) = clbDao.updatePinStatus(id, true)
 
     suspend fun unpin(id: Int) = clbDao.updatePinStatus(id, false)
+
+    /**
+     * Batch variants used by the clipboard search selection mode.
+     */
+    suspend fun pinAll(ids: Collection<Int>) {
+        if (ids.isEmpty()) return
+        clbDao.updatePinStatusForIds(ids.toList(), true)
+    }
+
+    suspend fun unpinAll(ids: Collection<Int>) {
+        if (ids.isEmpty()) return
+        mutex.withLock {
+            clbDb.withTransaction {
+                clbDao.updatePinStatusForIds(ids.toList(), false)
+                removeOutdated()
+            }
+        }
+    }
+
+    suspend fun deleteAll(ids: Collection<Int>) {
+        if (ids.isEmpty()) return
+        val shouldClearSuggestion = lastEntry?.id?.let { ids.contains(it) } == true
+        clbDao.markAsDeleted(*ids.toIntArray())
+        if (shouldClearSuggestion) {
+            clearLastEntry()
+        }
+        updateItemCount()
+    }
+
+    suspend fun search(
+        query: String,
+        category: ClipboardSearchCategory = ClipboardSearchCategory.Local,
+        fallbackFromLocalToAll: Boolean = true
+    ): ClipboardSearchResult = searchClipboardEntries(
+        query = query,
+        category = category,
+        fallbackFromLocalToAll = fallbackFromLocalToAll,
+        searchCategory = { target, normalizedQuery ->
+            when (target) {
+                ClipboardSearchCategory.All -> mergeClipboardSearchEntries(
+                    textEntries = clbDao.searchTextEntries(normalizedQuery),
+                    mediaEntries = searchMediaEntries(
+                        clbDao.getAllMediaEntries(),
+                        normalizedQuery,
+                        ::resolveMediaFileName
+                    )
+                )
+
+                ClipboardSearchCategory.Favorites -> clbDao.searchFavoriteTextEntries(normalizedQuery)
+                ClipboardSearchCategory.Local -> clbDao.searchTextEntriesBySource(
+                    ClipboardEntry.SOURCE_LOCAL,
+                    normalizedQuery
+                )
+
+                ClipboardSearchCategory.Remote -> clbDao.searchTextEntriesBySource(
+                    ClipboardEntry.SOURCE_REMOTE,
+                    normalizedQuery
+                )
+
+                ClipboardSearchCategory.Media -> searchMediaEntries(
+                    clbDao.getAllMediaEntries(),
+                    normalizedQuery,
+                    ::resolveMediaFileName
+                )
+            }
+        }
+    )
+
+    private fun resolveMediaFileName(entry: ClipboardEntry): String? =
+        runCatching { Uri.parse(entry.text) }.getOrNull()
+            ?.let { resolveClipboardUriFileName(appContext, it) }
 
     suspend fun markUsed(id: Int, timestamp: Long = System.currentTimeMillis()) {
         clbDao.updateTime(id, timestamp)
