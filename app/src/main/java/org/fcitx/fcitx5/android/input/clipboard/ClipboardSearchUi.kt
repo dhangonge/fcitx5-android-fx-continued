@@ -195,6 +195,7 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
             gravity = Gravity.CENTER_VERTICAL
             add(backButton, lParams(dp(40), dp(40)))
             add(dragHandle, lParams(0, dp(40)) { weight = 1f })
+            add(selectButton, lParams(dp(40), dp(40)))
             add(pinButton, lParams(dp(40), dp(40)))
         }, lParams(matchParent, dp(40)))
         add(categoryBar, lParams(matchParent, dp(40)))

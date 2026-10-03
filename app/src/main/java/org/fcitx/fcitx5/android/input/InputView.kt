@@ -2496,12 +2496,6 @@ class InputView(
             }
         }
 
-        if (clipboardSearchActive) {
-            val searchRect = Rect()
-            clipboardSearchOverlay.root.getHitRect(searchRect)
-            rect.union(searchRect)
-        }
-
         // No extra inset needed now as handles provide padding and coverage
 
         outRegion.set(rect)
@@ -2548,6 +2542,17 @@ class InputView(
                     preeditLocation[1] + preedit.ui.root.height
                 )
             }
+        }
+
+        if (clipboardSearchActive) {
+            val searchLocation = IntArray(2)
+            clipboardSearchOverlay.root.getLocationInWindow(searchLocation)
+            rect.union(
+                searchLocation[0],
+                searchLocation[1],
+                searchLocation[0] + clipboardSearchOverlay.root.width,
+                searchLocation[1] + clipboardSearchOverlay.root.height
+            )
         }
 
         var auxBarRectForRegion: Rect? = null
