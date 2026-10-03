@@ -150,10 +150,12 @@ class ClipboardSearchAdapter(
             }
         }
         bindSelectionIndicator(holder, entry)
-        holder.itemView.setOnClickListener {
+        // Listeners must sit on the entry root: it is clickable and consumes touches,
+        // so a listener on the wrapping container would never fire.
+        holder.ui.root.setOnClickListener {
             if (selectionMode) toggleSelection(entry) else onEntryClick(entry)
         }
-        holder.itemView.setOnLongClickListener {
+        holder.ui.root.setOnLongClickListener {
             if (selectionMode) {
                 toggleSelection(entry)
                 true

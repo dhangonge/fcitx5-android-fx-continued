@@ -21,6 +21,14 @@ class ClipboardSearchInputState {
     var preeditCursor: Int = 0
         private set
 
+    var selectionStart: Int = -1
+        private set
+
+    var selectionEnd: Int = -1
+        private set
+
+    private var selectionAnchor: Int = -1
+
     val text: String
         get() = buildString(committedText.length + preeditText.length) {
             append(committedText, 0, committedCursor)
@@ -31,7 +39,11 @@ class ClipboardSearchInputState {
     val displayCursor: Int
         get() = committedCursor + preeditCursor
 
+    val hasSelection: Boolean
+        get() = selectionStart in 0 until selectionEnd
+
     fun commit(text: String, cursor: Int = -1) {
+        deleteSelection()
         val insertionPoint = committedCursor
         committedText = buildString(committedText.length + text.length) {
             append(committedText, 0, insertionPoint)
@@ -44,7 +56,9 @@ class ClipboardSearchInputState {
     }
 
     fun setPreedit(formattedText: FormattedText) {
-        preeditText = formattedText.toString()
+        val incoming = formattedText.toString()
+        if (incoming.isNotEmpty()) deleteSelection()
+        preeditText = incoming
         preeditCursor = safeBoundary(
             preeditText,
             if (formattedText.cursor < 0) preeditText.length else formattedText.cursor
@@ -52,6 +66,7 @@ class ClipboardSearchInputState {
     }
 
     fun backspace() {
+        if (deleteSelection()) return
         if (preeditText.isNotEmpty()) {
             val start = previousBoundary(preeditText, preeditCursor)
             preeditText = preeditText.removeRange(start, preeditCursor)
@@ -65,6 +80,7 @@ class ClipboardSearchInputState {
     }
 
     fun delete() {
+        if (deleteSelection()) return
         if (preeditText.isNotEmpty()) {
             if (preeditCursor == preeditText.length) return
             val end = nextBoundary(preeditText, preeditCursor)
@@ -77,6 +93,11 @@ class ClipboardSearchInputState {
     }
 
     fun moveCursor(delta: Int) {
+        if (hasSelection) {
+            committedCursor = if (delta < 0) selectionStart else selectionEnd
+            clearSelection()
+            return
+        }
         if (preeditText.isNotEmpty()) {
             preeditCursor = if (delta < 0) {
                 previousBoundary(preeditText, preeditCursor)
@@ -93,6 +114,7 @@ class ClipboardSearchInputState {
     }
 
     fun setCursor(displayOffset: Int): Boolean {
+        clearSelection()
         val insertionPoint = committedCursor
         val hadPreedit = preeditText.isNotEmpty()
         val offset = displayOffset.coerceIn(0, text.length)
@@ -108,6 +130,7 @@ class ClipboardSearchInputState {
     }
 
     fun deleteSurrounding(before: Int, after: Int) {
+        if (deleteSelection()) return
         if (before <= 0 && after <= 0) return
         val start = moveByCodePoints(committedText, committedCursor, -before)
         val end = moveByCodePoints(committedText, committedCursor, after)
@@ -118,7 +141,73 @@ class ClipboardSearchInputState {
     fun clear() {
         committedText = ""
         committedCursor = 0
+        clearSelection()
         clearPreedit()
+    }
+
+    /** Selects the whitespace-separated token around [offset]. */
+    fun selectWordAt(offset: Int): Boolean {
+        if (committedText.isEmpty()) return false
+        clearPreedit()
+        val range = wordRangeAt(offset) ?: return false
+        selectionAnchor = range.first
+        selectionStart = range.first
+        selectionEnd = range.last + 1
+        committedCursor = selectionEnd
+        return true
+    }
+
+    /** Grows or shrinks the selection made by [selectWordAt] towards [offset]. */
+    fun extendSelectionTo(offset: Int): Boolean {
+        if (selectionAnchor < 0) return false
+        val range = wordRangeAt(offset) ?: return false
+        if (range.last < selectionAnchor) {
+            selectionStart = range.first
+            selectionEnd = selectionAnchor
+        } else {
+            selectionStart = selectionAnchor
+            selectionEnd = range.last + 1
+        }
+        committedCursor = selectionEnd
+        return true
+    }
+
+    fun clearSelection() {
+        selectionStart = -1
+        selectionEnd = -1
+        selectionAnchor = -1
+    }
+
+    private fun wordRangeAt(offset: Int): IntRange? {
+        if (committedText.isEmpty()) return null
+        val boundary = safeBoundary(committedText, offset.coerceIn(0, committedText.length))
+        val index = if (boundary == committedText.length) {
+            previousBoundary(committedText, boundary)
+        } else {
+            boundary
+        }
+        if (committedText[index].isWhitespace()) {
+            return index until nextBoundary(committedText, index)
+        }
+        var start = index
+        while (start > 0) {
+            val previous = previousBoundary(committedText, start)
+            if (committedText[previous].isWhitespace()) break
+            start = previous
+        }
+        var end = nextBoundary(committedText, index)
+        while (end < committedText.length && !committedText[end].isWhitespace()) {
+            end = nextBoundary(committedText, end)
+        }
+        return start until end
+    }
+
+    private fun deleteSelection(): Boolean {
+        if (!hasSelection) return false
+        committedText = committedText.removeRange(selectionStart, selectionEnd)
+        committedCursor = selectionStart
+        clearSelection()
+        return true
     }
 
     private fun clearPreedit() {

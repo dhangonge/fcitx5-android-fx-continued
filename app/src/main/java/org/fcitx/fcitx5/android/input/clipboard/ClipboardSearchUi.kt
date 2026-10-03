@@ -12,10 +12,12 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.text.Spanned
+import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -49,6 +51,33 @@ import splitties.views.setPaddingDp
 class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : Ui {
 
     private var renderedCursor = 0
+    private var lastState: ClipboardSearchInputState? = null
+    private var cursorVisible = true
+    private var caretRendered = true
+    private var selecting = false
+    private var downRawX = 0f
+    private var downRawY = 0f
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var onCursorPositioned: ((Int) -> Unit)? = null
+    private var onSelectionStarted: ((Int) -> Unit)? = null
+    private var onSelectionExtended: ((Int) -> Unit)? = null
+
+    private val touchSlopSquared =
+        ViewConfiguration.get(ctx).scaledTouchSlop.let { it * it }
+
+    private val selectWord = Runnable {
+        selecting = true
+        onSelectionStarted?.invoke(offsetForTouch(lastTouchX, lastTouchY))
+    }
+
+    private val cursorBlink = object : Runnable {
+        override fun run() {
+            cursorVisible = !cursorVisible
+            drawInput()
+            queryText.postDelayed(this, CURSOR_BLINK_INTERVAL)
+        }
+    }
 
     val backButton = ToolButton(ctx, R.drawable.ic_baseline_arrow_back_24, theme).apply {
         contentDescription = ctx.getString(R.string.back_to_keyboard)
@@ -119,6 +148,16 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
 
     private val cursorSpan by lazy {
         PreeditUi.CursorSpan(ctx, theme.keyTextColor, queryText.paint.fontMetricsInt)
+    }
+
+    private val blankCursorSpan by lazy {
+        PreeditUi.CursorSpan(ctx, Color.TRANSPARENT, queryText.paint.fontMetricsInt)
+    }
+
+    private val selectionSpan by lazy {
+        BackgroundColorSpan(
+            (theme.accentKeyBackgroundColor and 0x00FFFFFF) or SELECTION_ALPHA
+        )
     }
 
     private val searchIcon = imageView {
@@ -293,22 +332,67 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     }
 
     fun setOnCursorPositionedListener(listener: (Int) -> Unit) {
+        onCursorPositioned = listener
         queryText.setOnTouchListener { view, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                queryText.requestFocus()
-                val layout = queryText.layout ?: return@setOnTouchListener true
-                val line = layout.getLineForVertical(
-                    (event.y - queryText.totalPaddingTop + queryText.scrollY).toInt()
-                )
-                val visualOffset = layout.getOffsetForHorizontal(
-                    line,
-                    event.x - queryText.totalPaddingLeft + queryText.scrollX
-                )
-                listener(if (visualOffset > renderedCursor) visualOffset - 1 else visualOffset)
-                view.performClick()
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    queryText.requestFocus()
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    selecting = false
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                    view.postDelayed(selectWord, ViewConfiguration.getLongPressTimeout().toLong())
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                    if (selecting) {
+                        onSelectionExtended?.invoke(offsetForTouch(event.x, event.y))
+                    } else {
+                        val dx = event.rawX - downRawX
+                        val dy = event.rawY - downRawY
+                        if (dx * dx + dy * dy > touchSlopSquared) view.removeCallbacks(selectWord)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    view.removeCallbacks(selectWord)
+                    if (!selecting) {
+                        onCursorPositioned?.invoke(offsetForTouch(event.x, event.y))
+                    }
+                    selecting = false
+                    view.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    view.removeCallbacks(selectWord)
+                    selecting = false
+                    true
+                }
+                else -> false
             }
-            true
         }
+    }
+
+    /** Enables long press selection on the query text. */
+    fun setOnSelectionListener(onStart: (Int) -> Unit, onExtend: (Int) -> Unit) {
+        onSelectionStarted = onStart
+        onSelectionExtended = onExtend
+    }
+
+    private fun offsetForTouch(x: Float, y: Float): Int {
+        val layout = queryText.layout ?: return renderedCursor
+        val line = layout.getLineForVertical(
+            (y - queryText.totalPaddingTop + queryText.scrollY).toInt()
+        )
+        val visualOffset = layout.getOffsetForHorizontal(
+            line,
+            x - queryText.totalPaddingLeft + queryText.scrollX
+        )
+        // The caret is a real character in the rendered string, so offsets past it shift by one.
+        return if (caretRendered && visualOffset > renderedCursor) visualOffset - 1 else visualOffset
     }
 
     fun showMessage(text: String) {
@@ -337,15 +421,48 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     }
 
     fun renderInput(state: ClipboardSearchInputState) {
+        lastState = state
+        cursorVisible = true
+        drawInput()
+        queryText.requestFocus()
+        queryText.removeCallbacks(cursorBlink)
+        queryText.postDelayed(cursorBlink, CURSOR_BLINK_INTERVAL)
+    }
+
+    fun stopCursorBlink() {
+        queryText.removeCallbacks(cursorBlink)
+        cursorVisible = true
+    }
+
+    private fun drawInput() {
+        val state = lastState ?: return
         clearButton.visibility = if (state.text.isEmpty()) View.INVISIBLE else View.VISIBLE
-        val cursor = state.displayCursor.coerceIn(0, state.text.length)
+        val text = state.text
+        caretRendered = !state.hasSelection
+        val selectionStart = state.selectionStart
+        val selectionEnd = state.selectionEnd
+        val cursor = state.displayCursor.coerceIn(0, text.length)
         renderedCursor = cursor
+        val scrollX = queryText.scrollX
         queryText.text = buildSpannedString {
-            append(state.text, 0, cursor)
-            append('|')
-            setSpan(cursorSpan, cursor, cursor + 1, Spanned.SPAN_INCLUSIVE_EXCLUSIVE)
-            append(state.text, cursor, state.text.length)
-            if (state.text.isEmpty()) {
+            if (!caretRendered) {
+                append(text, 0, selectionStart)
+                val from = length
+                append(text, selectionStart, selectionEnd)
+                setSpan(selectionSpan, from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                append(text, selectionEnd, text.length)
+            } else {
+                append(text, 0, cursor)
+                append('|')
+                setSpan(
+                    if (cursorVisible) cursorSpan else blankCursorSpan,
+                    cursor,
+                    cursor + 1,
+                    Spanned.SPAN_INCLUSIVE_EXCLUSIVE
+                )
+                append(text, cursor, text.length)
+            }
+            if (text.isEmpty()) {
                 val hintStart = length
                 append(ctx.getString(R.string.clipboard_search_hint))
                 setSpan(
@@ -356,6 +473,11 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
                 )
             }
         }
-        queryText.requestFocus()
+        queryText.scrollX = scrollX
+    }
+
+    private companion object {
+        const val CURSOR_BLINK_INTERVAL = 500L
+        const val SELECTION_ALPHA = 0x55000000
     }
 }

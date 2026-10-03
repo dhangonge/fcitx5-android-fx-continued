@@ -95,6 +95,7 @@ class ClipboardSearchOverlay(
             onInputChanged()
         }
         ui.setOnCursorPositionedListener(::setCursor)
+        ui.setOnSelectionListener(::selectWordAt, ::extendSelectionTo)
         setupDragging()
         ui.setSelectedCategory(selectedCategory)
         ui.setPinned(isPinned)
@@ -119,6 +120,7 @@ class ClipboardSearchOverlay(
     fun close() {
         ui.dragHandle.removeCallbacks(activateDrag)
         dragActivated = false
+        ui.stopCursorBlink()
         searchJob?.cancel()
         searchJob = null
         selectionJob?.cancel()
@@ -170,6 +172,15 @@ class ClipboardSearchOverlay(
         val inputChanged = inputState.setCursor(offset)
         onCursorPositioned()
         if (inputChanged) onInputChanged() else ui.renderInput(inputState)
+    }
+
+    private fun selectWordAt(offset: Int) {
+        onCursorPositioned()
+        if (inputState.selectWordAt(offset)) ui.renderInput(inputState)
+    }
+
+    private fun extendSelectionTo(offset: Int) {
+        if (inputState.extendSelectionTo(offset)) ui.renderInput(inputState)
     }
 
     fun deleteSurrounding(before: Int, after: Int) {

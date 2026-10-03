@@ -3418,7 +3418,9 @@ class InputView(
             }
             is KeyAction.FcitxKeyAction,
             is KeyAction.SymAction,
-            is KeyAction.LayoutSwitchAction -> false
+            is KeyAction.LayoutSwitchAction,
+            is KeyAction.LangSwitchAction,
+            is KeyAction.ShowInputMethodPickerAction -> false
             else -> true
         }
     }
