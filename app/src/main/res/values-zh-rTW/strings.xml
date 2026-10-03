@@ -112,8 +112,6 @@
     <string name="clipboard_search_favorite_results">收藏記錄，共 %1$d 筆</string>
     <string name="clipboard_search_remote_results">其他裝置記錄，共 %1$d 筆</string>
     <string name="clipboard_search_media_results">圖文記錄，共 %1$d 筆</string>
-    <string name="clipboard_search_category_remote">其他裝置</string>
-    <string name="clipboard_search_category_media">圖文</string>
     <string name="clipboard_search_pin">固定搜尋浮窗</string>
     <string name="clipboard_search_unpin">取消固定搜尋浮窗</string>
     <string name="clipboard_search_no_results">找不到相關記錄</string>

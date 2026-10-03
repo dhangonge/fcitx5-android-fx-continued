@@ -112,8 +112,6 @@
     <string name="clipboard_search_favorite_results">收藏记录，共 %1$d 条</string>
     <string name="clipboard_search_remote_results">远程记录，共 %1$d 条</string>
     <string name="clipboard_search_media_results">图文记录，共 %1$d 条</string>
-    <string name="clipboard_search_category_remote">远程</string>
-    <string name="clipboard_search_category_media">图文</string>
     <string name="clipboard_search_pin">固定搜索浮窗</string>
     <string name="clipboard_search_unpin">取消固定搜索浮窗</string>
     <string name="clipboard_search_no_results">没有找到相关记录</string>

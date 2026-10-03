@@ -77,8 +77,8 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         ClipboardSearchCategory.All to createCategoryButton(R.string.clipboard_category_all),
         ClipboardSearchCategory.Favorites to createCategoryButton(R.string.clipboard_category_favorites),
         ClipboardSearchCategory.Local to createCategoryButton(R.string.clipboard_category_local),
-        ClipboardSearchCategory.Remote to createCategoryButton(R.string.clipboard_search_category_remote),
-        ClipboardSearchCategory.Media to createCategoryButton(R.string.clipboard_search_category_media)
+        ClipboardSearchCategory.Remote to createCategoryButton(R.string.clipboard_category_remote),
+        ClipboardSearchCategory.Media to createCategoryButton(R.string.clipboard_category_media)
     )
 
     private val categoryBar = horizontalLayout {

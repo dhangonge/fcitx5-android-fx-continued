@@ -119,8 +119,6 @@
     <string name="clipboard_search_favorite_results">Favorites · %1$d results</string>
     <string name="clipboard_search_remote_results">Remote history · %1$d results</string>
     <string name="clipboard_search_media_results">Media · %1$d results</string>
-    <string name="clipboard_search_category_remote">Remote</string>
-    <string name="clipboard_search_category_media">Media</string>
     <string name="clipboard_search_pin">Pin search window</string>
     <string name="clipboard_search_unpin">Unpin search window</string>
     <string name="clipboard_search_no_results">No matching history found</string>
