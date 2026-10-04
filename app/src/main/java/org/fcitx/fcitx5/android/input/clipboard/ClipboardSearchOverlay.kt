@@ -5,12 +5,19 @@
  */
 package org.fcitx.fcitx5.android.input.clipboard
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import com.google.android.material.snackbar.BaseTransientBottomBar.BaseCallback
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.snackbar.SnackbarContentLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,10 +33,13 @@ import org.fcitx.fcitx5.android.data.clipboard.ClipboardSearchDismissReason
 import org.fcitx.fcitx5.android.data.clipboard.shouldDismissClipboardSearch
 import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.utils.ClipboardSourceDeletionTarget
+import splitties.dimensions.dp
+import splitties.views.dsl.core.withTheme
 
 class ClipboardSearchOverlay(
-    context: Context,
-    theme: Theme,
+    private val context: Context,
+    private val theme: Theme,
     entryRadius: Float,
     maskSensitive: Boolean,
     private val scope: CoroutineScope,
@@ -37,6 +47,8 @@ class ClipboardSearchOverlay(
     private val onCursorPositioned: () -> Unit,
     private val onEntryClick: (ClipboardEntry, Boolean) -> Unit
 ) {
+    private val snackbarCtx = context.withTheme(R.style.InputViewSnackbarTheme)
+    private var snackbarInstance: Snackbar? = null
     private val ui = ClipboardSearchUi(context, theme)
     val root get() = ui.root
     private val inputState = ClipboardSearchInputState()
@@ -95,7 +107,7 @@ class ClipboardSearchOverlay(
             onInputChanged()
         }
         ui.setOnCursorPositionedListener(::setCursor)
-        ui.setOnSelectionListener(::selectWordAt, ::extendSelectionTo)
+        ui.setOnSelectionListener(::selectWordAt, ::moveSelectionEdge)
         setupDragging()
         ui.setSelectedCategory(selectedCategory)
         ui.setPinned(isPinned)
@@ -128,6 +140,8 @@ class ClipboardSearchOverlay(
         setSelectionMode(false)
         adapter.submitList(emptyList())
         inputState.clear()
+        snackbarInstance?.dismiss()
+        scope.launch { finishPendingDeletion() }
     }
 
     fun setSelectionMode(enabled: Boolean) {
@@ -179,8 +193,12 @@ class ClipboardSearchOverlay(
         if (inputState.selectWordAt(offset)) ui.renderInput(inputState)
     }
 
-    private fun extendSelectionTo(offset: Int) {
-        if (inputState.extendSelectionTo(offset)) ui.renderInput(inputState)
+    private fun moveSelectionEdge(offset: Int, isStart: Boolean) {
+        if (inputState.moveSelectionEdge(offset, isStart)) {
+            ui.renderInput(inputState)
+        } else {
+            ui.refreshCaret()
+        }
     }
 
     fun deleteSurrounding(before: Int, after: Int) {
@@ -239,36 +257,106 @@ class ClipboardSearchOverlay(
         ui.showMessage(ui.ctx.getString(R.string.clipboard_search_initial))
     }
 
+    private val pendingDeleteIds = arrayListOf<Int>()
+    private val pendingSuppressedRemoteContents = linkedSetOf<String>()
+    private val pendingDeleteSourceTargets = linkedMapOf<Int, ClipboardSourceDeletionTarget>()
+
+    private fun clearPendingDeletion() {
+        pendingDeleteIds.clear()
+        pendingSuppressedRemoteContents.clear()
+        pendingDeleteSourceTargets.clear()
+    }
+
+    /**
+     * Completes a deletion that was not undone: suppresses the remote echoes, drops the
+     * stored media files and makes the soft delete permanent.
+     */
+    private suspend fun finishPendingDeletion() {
+        if (pendingDeleteIds.isEmpty() && pendingSuppressedRemoteContents.isEmpty() &&
+            pendingDeleteSourceTargets.isEmpty()
+        ) {
+            return
+        }
+        // Take ownership of the pending work first so a concurrent call becomes a no-op.
+        val suppressed = pendingSuppressedRemoteContents.toList()
+        val targets = pendingDeleteSourceTargets.values.toList()
+        clearPendingDeletion()
+        withContext(Dispatchers.IO) {
+            if (suppressed.isNotEmpty()) {
+                MainService.suppressRemoteClipboardContents(context, suppressed)
+            }
+            if (targets.isNotEmpty()) {
+                ClipboardManager.deleteClipboardSourceFiles(targets)
+            }
+            ClipboardManager.realDelete()
+        }
+    }
+
+    /** Soft deletes the selected entries and offers an undo, mirroring the clipboard window. */
     private fun batchDelete() {
         val ids = adapter.selectedEntryIds()
         if (ids.isEmpty()) return
-        val context = ui.ctx
         selectionJob?.cancel()
         selectionJob = scope.launch {
-            val (targets, suppressed) = withContext(Dispatchers.IO) {
-                val targets = ids.mapNotNull { id ->
-                    ClipboardManager.mediaDeletionTarget(id)?.let { id to it }
-                }
-                val suppressed = ids.mapNotNull { ClipboardManager.remoteSuppressionContent(it) }
-                targets to suppressed
-            }
             withContext(Dispatchers.IO) {
+                ids.forEach { id ->
+                    ClipboardManager.mediaDeletionTarget(id)?.let { pendingDeleteSourceTargets[id] = it }
+                    ClipboardManager.remoteSuppressionContent(id)?.let {
+                        pendingSuppressedRemoteContents += it
+                    }
+                }
                 ClipboardManager.deleteAll(ids)
-                if (targets.isNotEmpty()) {
-                    ClipboardManager.deleteClipboardSourceFiles(targets.map { it.second })
-                }
-                if (suppressed.isNotEmpty()) {
-                    MainService.suppressRemoteClipboardContents(context, suppressed)
-                }
             }
-            Toast.makeText(
-                context,
-                context.getString(R.string.clipboard_search_batch_deleted, ids.size),
-                Toast.LENGTH_SHORT
-            ).also { it.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 0) }.show()
+            showUndoSnackbar(ids)
             setSelectionMode(false)
             onInputChanged()
         }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private fun showUndoSnackbar(ids: List<Int>) {
+        pendingDeleteIds += ids
+        val str = context.getString(R.string.num_items_deleted, pendingDeleteIds.size)
+        snackbarInstance = Snackbar.make(snackbarCtx, ui.root, str, Snackbar.LENGTH_LONG)
+            .setBackgroundTint(theme.popupBackgroundColor)
+            .setTextColor(theme.popupTextColor)
+            .setActionTextColor(theme.genericActiveBackgroundColor)
+            .setAction(R.string.undo) {
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        ClipboardManager.undoDelete(*pendingDeleteIds.toIntArray())
+                    }
+                    clearPendingDeletion()
+                    onInputChanged()
+                }
+            }
+            .addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(transientBottomBar: Snackbar, event: Int) {
+                    if (snackbarInstance === transientBottomBar) {
+                        snackbarInstance = null
+                    }
+                    when (event) {
+                        BaseCallback.DISMISS_EVENT_SWIPE,
+                        BaseCallback.DISMISS_EVENT_MANUAL,
+                        BaseCallback.DISMISS_EVENT_TIMEOUT -> scope.launch { finishPendingDeletion() }
+
+                        else -> Unit
+                    }
+                }
+            }).apply {
+                val hMargin = snackbarCtx.dp(24)
+                val vMargin = snackbarCtx.dp(16)
+                view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                    leftMargin = hMargin
+                    rightMargin = hMargin
+                    bottomMargin = vMargin
+                }
+                ((view as FrameLayout).getChildAt(0) as SnackbarContentLayout).apply {
+                    messageView.letterSpacing = 0f
+                    actionView.letterSpacing = 0f
+                }
+                show()
+            }
     }
 
     private fun batchSetPinned(pinned: Boolean) {

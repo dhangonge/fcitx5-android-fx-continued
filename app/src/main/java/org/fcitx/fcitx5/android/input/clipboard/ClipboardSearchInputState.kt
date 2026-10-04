@@ -172,6 +172,27 @@ class ClipboardSearchInputState {
         return true
     }
 
+    /**
+     * Moves one edge of the current selection to [offset], keeping the other edge fixed.
+     * Used by the drag handles, which move character by character.
+     */
+    fun moveSelectionEdge(offset: Int, isStart: Boolean): Boolean {
+        if (!hasSelection) return false
+        val edge = safeBoundary(committedText, offset.coerceIn(0, committedText.length))
+        if (isStart) {
+            selectionStart = edge.coerceAtMost(selectionEnd - 1)
+        } else {
+            selectionEnd = edge.coerceAtLeast(selectionStart + 1)
+        }
+        if (!hasSelection) {
+            clearSelection()
+            return false
+        }
+        selectionAnchor = selectionStart
+        committedCursor = selectionEnd
+        return true
+    }
+
     fun clearSelection() {
         selectionStart = -1
         selectionEnd = -1

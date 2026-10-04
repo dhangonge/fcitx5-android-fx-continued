@@ -10,6 +10,7 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.RippleDrawable
 import android.text.Spanned
 import android.text.style.BackgroundColorSpan
@@ -28,7 +29,6 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardSearchCategory
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
-import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import splitties.dimensions.dp
 import splitties.resources.drawable
 import splitties.views.backgroundColor
@@ -53,15 +53,17 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     private var renderedCursor = 0
     private var lastState: ClipboardSearchInputState? = null
     private var cursorVisible = true
-    private var caretRendered = true
     private var selecting = false
+    private var draggingEdge = 0
     private var downRawX = 0f
     private var downRawY = 0f
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    private var handleDownRawX = 0f
+    private var handleDownX = 0f
     private var onCursorPositioned: ((Int) -> Unit)? = null
     private var onSelectionStarted: ((Int) -> Unit)? = null
-    private var onSelectionExtended: ((Int) -> Unit)? = null
+    private var onSelectionEdge: ((Int, Boolean) -> Unit)? = null
 
     private val touchSlopSquared =
         ViewConfiguration.get(ctx).scaledTouchSlop.let { it * it }
@@ -74,7 +76,7 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     private val cursorBlink = object : Runnable {
         override fun run() {
             cursorVisible = !cursorVisible
-            drawInput()
+            updateCaretAndHandles()
             queryText.postDelayed(this, CURSOR_BLINK_INTERVAL)
         }
     }
@@ -146,12 +148,41 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         setTextColor(theme.keyTextColor)
     }
 
-    private val cursorSpan by lazy {
-        PreeditUi.CursorSpan(ctx, theme.keyTextColor, queryText.paint.fontMetricsInt)
+    /** Caret drawn as its own view so text offsets stay 1:1 with the input state. */
+    private val caretView = View(ctx).apply {
+        setBackgroundColor(theme.keyTextColor)
+        visibility = View.INVISIBLE
     }
 
-    private val blankCursorSpan by lazy {
-        PreeditUi.CursorSpan(ctx, Color.TRANSPARENT, queryText.paint.fontMetricsInt)
+    private fun createHandleView() = View(ctx).apply {
+        background = InsetDrawable(
+            GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(theme.accentKeyBackgroundColor)
+                setStroke(ctx.dp(1), theme.accentKeyTextColor)
+            },
+            ctx.dp(HANDLE_INSET_DP)
+        )
+        visibility = View.INVISIBLE
+    }
+
+    private val startHandle = createHandleView()
+    private val endHandle = createHandleView()
+
+    private val queryContainer = frameLayout {
+        add(queryText, FrameLayout.LayoutParams(matchParent, matchParent))
+        add(
+            caretView,
+            FrameLayout.LayoutParams(dp(2), dp(CARET_HEIGHT_DP), Gravity.CENTER_VERTICAL)
+        )
+        add(
+            startHandle,
+            FrameLayout.LayoutParams(dp(HANDLE_SIZE_DP), dp(HANDLE_SIZE_DP), Gravity.BOTTOM)
+        )
+        add(
+            endHandle,
+            FrameLayout.LayoutParams(dp(HANDLE_SIZE_DP), dp(HANDLE_SIZE_DP), Gravity.BOTTOM)
+        )
     }
 
     private val selectionSpan by lazy {
@@ -176,7 +207,7 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
             setColor(theme.keyBackgroundColor)
         }
         add(searchIcon, lParams(dp(40), dp(40)))
-        add(queryText, lParams(0, dp(44)) { weight = 1f })
+        add(queryContainer, lParams(0, dp(44)) { weight = 1f })
         add(clearButton, lParams(dp(40), dp(40)))
     }
 
@@ -256,6 +287,13 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         })
     }
 
+    init {
+        setupSelectionGestures()
+        queryText.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateCaretAndHandles()
+        }
+    }
+
     private fun createSelectionActionButton(textRes: Int) = textView {
         gravity = gravityCenter
         text = ctx.getString(textRes)
@@ -333,23 +371,31 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
 
     fun setOnCursorPositionedListener(listener: (Int) -> Unit) {
         onCursorPositioned = listener
+    }
+
+    /**
+     * Wires the query text gestures: tap to place the caret, long press to select a word,
+     * then keep dragging the same gesture to extend the selection.
+     */
+    private fun setupSelectionGestures() {
         queryText.setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     queryText.requestFocus()
                     downRawX = event.rawX
                     downRawY = event.rawY
-                    selecting = false
                     lastTouchX = event.x
                     lastTouchY = event.y
+                    selecting = false
                     view.postDelayed(selectWord, ViewConfiguration.getLongPressTimeout().toLong())
                     true
                 }
+
                 MotionEvent.ACTION_MOVE -> {
                     lastTouchX = event.x
                     lastTouchY = event.y
                     if (selecting) {
-                        onSelectionExtended?.invoke(offsetForTouch(event.x, event.y))
+                        onSelectionEdge?.invoke(offsetForTouch(event.x, event.y), false)
                     } else {
                         val dx = event.rawX - downRawX
                         val dy = event.rawY - downRawY
@@ -357,6 +403,7 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
                     }
                     true
                 }
+
                 MotionEvent.ACTION_UP -> {
                     view.removeCallbacks(selectWord)
                     if (!selecting) {
@@ -366,20 +413,54 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
                     view.performClick()
                     true
                 }
+
                 MotionEvent.ACTION_CANCEL -> {
                     view.removeCallbacks(selectWord)
                     selecting = false
                     true
                 }
+
+                else -> false
+            }
+        }
+        setupHandle(startHandle, isStart = true)
+        setupHandle(endHandle, isStart = false)
+    }
+
+    private fun setupHandle(handle: View, isStart: Boolean) {
+        handle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    draggingEdge = if (isStart) -1 else 1
+                    handleDownRawX = event.rawX
+                    handleDownX = handle.x
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val x = handleDownX + (event.rawX - handleDownRawX)
+                    handle.x = x
+                    onSelectionEdge?.invoke(
+                        offsetForX(x + ctx.dp(HANDLE_SIZE_DP) / 2f),
+                        isStart
+                    )
+                    true
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    draggingEdge = 0
+                    true
+                }
+
                 else -> false
             }
         }
     }
 
     /** Enables long press selection on the query text. */
-    fun setOnSelectionListener(onStart: (Int) -> Unit, onExtend: (Int) -> Unit) {
+    fun setOnSelectionListener(onStart: (Int) -> Unit, onEdge: (Int, Boolean) -> Unit) {
         onSelectionStarted = onStart
-        onSelectionExtended = onExtend
+        onSelectionEdge = onEdge
     }
 
     private fun offsetForTouch(x: Float, y: Float): Int {
@@ -387,12 +468,23 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         val line = layout.getLineForVertical(
             (y - queryText.totalPaddingTop + queryText.scrollY).toInt()
         )
-        val visualOffset = layout.getOffsetForHorizontal(
-            line,
-            x - queryText.totalPaddingLeft + queryText.scrollX
-        )
-        // The caret is a real character in the rendered string, so offsets past it shift by one.
-        return if (caretRendered && visualOffset > renderedCursor) visualOffset - 1 else visualOffset
+        return offsetForX(x, line)
+    }
+
+    private fun offsetForX(x: Float, line: Int = 0): Int {
+        val layout = queryText.layout ?: return renderedCursor
+        if (layout.lineCount == 0) return 0
+        val tx = x - queryText.compoundPaddingLeft + queryText.scrollX
+        val safeLine = line.coerceIn(0, layout.lineCount - 1)
+        return layout.getOffsetForHorizontal(safeLine, tx)
+            .coerceIn(0, layout.text.length)
+    }
+
+    /** x of [offset] in queryContainer coordinates. */
+    private fun xForOffset(offset: Int): Float {
+        val layout = queryText.layout ?: return 0f
+        val o = offset.coerceIn(0, layout.text.length)
+        return queryText.compoundPaddingLeft - queryText.scrollX + layout.getPrimaryHorizontal(o)
     }
 
     fun showMessage(text: String) {
@@ -432,35 +524,29 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     fun stopCursorBlink() {
         queryText.removeCallbacks(cursorBlink)
         cursorVisible = true
+        updateCaretAndHandles()
     }
+
+    /** Kept for callers that only need to reposition the caret and handles. */
+    fun refreshCaret() = updateCaretAndHandles()
 
     private fun drawInput() {
         val state = lastState ?: return
         clearButton.visibility = if (state.text.isEmpty()) View.INVISIBLE else View.VISIBLE
         val text = state.text
-        caretRendered = !state.hasSelection
         val selectionStart = state.selectionStart
         val selectionEnd = state.selectionEnd
-        val cursor = state.displayCursor.coerceIn(0, text.length)
-        renderedCursor = cursor
+        renderedCursor = state.displayCursor.coerceIn(0, text.length)
         val scrollX = queryText.scrollX
         queryText.text = buildSpannedString {
-            if (!caretRendered) {
+            if (state.hasSelection) {
                 append(text, 0, selectionStart)
                 val from = length
                 append(text, selectionStart, selectionEnd)
                 setSpan(selectionSpan, from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 append(text, selectionEnd, text.length)
             } else {
-                append(text, 0, cursor)
-                append('|')
-                setSpan(
-                    if (cursorVisible) cursorSpan else blankCursorSpan,
-                    cursor,
-                    cursor + 1,
-                    Spanned.SPAN_INCLUSIVE_EXCLUSIVE
-                )
-                append(text, cursor, text.length)
+                append(text)
             }
             if (text.isEmpty()) {
                 val hintStart = length
@@ -474,10 +560,35 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
             }
         }
         queryText.scrollX = scrollX
+        updateCaretAndHandles()
+    }
+
+    private fun updateCaretAndHandles() {
+        val state = lastState ?: return
+        val layout = queryText.layout
+        if (layout == null || layout.text.toString() != queryText.text.toString()) {
+            // The layout still describes the previous text; it will trigger a layout pass.
+            return
+        }
+        caretView.x = xForOffset(renderedCursor)
+        caretView.visibility =
+            if (!state.hasSelection && cursorVisible) View.VISIBLE else View.INVISIBLE
+
+        val hasSelection = state.hasSelection
+        startHandle.visibility = if (hasSelection) View.VISIBLE else View.INVISIBLE
+        endHandle.visibility = if (hasSelection) View.VISIBLE else View.INVISIBLE
+        if (!hasSelection) return
+        val half = ctx.dp(HANDLE_SIZE_DP) / 2f
+        // While dragging a handle the finger owns its position, so don't fight it.
+        if (draggingEdge != -1) startHandle.x = xForOffset(state.selectionStart) - half
+        if (draggingEdge != 1) endHandle.x = xForOffset(state.selectionEnd) - half
     }
 
     private companion object {
         const val CURSOR_BLINK_INTERVAL = 500L
         const val SELECTION_ALPHA = 0x55000000
+        const val HANDLE_SIZE_DP = 32
+        const val HANDLE_INSET_DP = 10
+        const val CARET_HEIGHT_DP = 18
     }
 }

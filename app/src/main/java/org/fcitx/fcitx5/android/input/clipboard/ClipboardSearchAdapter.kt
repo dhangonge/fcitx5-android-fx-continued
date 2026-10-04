@@ -117,7 +117,7 @@ class ClipboardSearchAdapter(
         )
         container.layoutParams = RecyclerView.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            ctx.dp(84)
+            ViewGroup.LayoutParams.WRAP_CONTENT
         )
         return ViewHolder(ui, indicator, container)
     }

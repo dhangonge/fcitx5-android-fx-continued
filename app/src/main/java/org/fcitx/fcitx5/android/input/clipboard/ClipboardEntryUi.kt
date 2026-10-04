@@ -71,7 +71,7 @@ class ClipboardEntryUi(
 
     val textView = textView {
         minLines = 1
-        maxLines = if (searchResultLayout) 3 else 4
+        maxLines = if (searchResultLayout) SEARCH_MAX_LINES else 4
         textSize = 14f
         includeFontPadding = false
         setPaddingDp(8, 4, 8, 4)
@@ -104,7 +104,7 @@ class ClipboardEntryUi(
 
     override val root = CustomGestureView(ctx).apply {
         isClickable = true
-        minimumHeight = dp(if (searchResultLayout) 68 else 30)
+        minimumHeight = dp(if (searchResultLayout) 34 else 30)
         foreground = RippleDrawable(
             ColorStateList.valueOf(theme.keyPressHighlightColor), null,
             GradientDrawable().apply {
@@ -181,5 +181,10 @@ class ClipboardEntryUi(
                 root.minimumHeight = ctx.dp(30)
             }
         }
+    }
+
+    private companion object {
+        /** Search results grow with their text but never past this many lines. */
+        const val SEARCH_MAX_LINES = 5
     }
 }
