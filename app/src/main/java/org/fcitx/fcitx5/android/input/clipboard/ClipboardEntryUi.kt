@@ -79,6 +79,19 @@ class ClipboardEntryUi(
         setTextColor(theme.keyTextColor)
     }
 
+    /**
+     * Fades the bottom of a truncated search result into the card colour, rounded like the
+     * card itself, so a clipped entry reads as "there is more text below".
+     */
+    private val fadeOut = View(ctx).apply {
+        visibility = View.GONE
+        background = GradientDrawable().apply {
+            orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            colors = intArrayOf(Color.TRANSPARENT, theme.clipboardEntryColor)
+            cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, radius, radius, radius, radius)
+        }
+    }
+
     val pin = imageView {
         imageDrawable = drawable(R.drawable.ic_baseline_push_pin_24)!!.apply {
             setTint(theme.altKeyTextColor)
@@ -95,6 +108,9 @@ class ClipboardEntryUi(
         })
         add(textView, lParams(matchParent, wrapContent) {
             centerVertically()
+        })
+        add(fadeOut, lParams(matchParent, dp(FADE_OUT_HEIGHT_DP)) {
+            bottomOfParent()
         })
         add(pin, lParams(dp(12), dp(12)) {
             bottomOfParent(dp(2))
@@ -119,6 +135,19 @@ class ClipboardEntryUi(
         add(layout, lParams(matchParent, matchParent))
     }
 
+    init {
+        // View holders outlive a single bind, so register the listener once per view.
+        textView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateFadeOut() }
+    }
+
+    private fun updateFadeOut() {
+        val textLayout = textView.layout
+        val truncated = searchResultLayout && textView.visibility == View.VISIBLE &&
+            textLayout != null && textLayout.lineCount > 0 &&
+            textLayout.getEllipsisCount(textLayout.lineCount - 1) > 0
+        fadeOut.visibility = if (truncated) View.VISIBLE else View.GONE
+    }
+
     fun setEntry(
         text: String,
         pinned: Boolean,
@@ -127,6 +156,7 @@ class ClipboardEntryUi(
     ) {
         textView.text = text
         pin.visibility = if (pinned) View.VISIBLE else View.GONE
+        fadeOut.visibility = View.GONE
         if (searchResultLayout) {
             if (compactMedia) {
                 preview.visibility = if (previewBitmap != null) View.VISIBLE else View.GONE
@@ -148,6 +178,7 @@ class ClipboardEntryUi(
                 textView.setPaddingDp(8, 4, 8, 4)
                 textView.gravity = Gravity.CENTER_VERTICAL or Gravity.START
                 textView.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                textView.post { updateFadeOut() }
             }
             return
         }
@@ -186,5 +217,6 @@ class ClipboardEntryUi(
     private companion object {
         /** Search results grow with their text but never past this many lines. */
         const val SEARCH_MAX_LINES = 5
+        const val FADE_OUT_HEIGHT_DP = 18
     }
 }
