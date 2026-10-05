@@ -137,13 +137,14 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
 
     private val queryText = textView {
         textSize = 15f
-        gravity = Gravity.TOP
+        gravity = Gravity.CENTER_VERTICAL
         isSingleLine = true
         isFocusable = true
         isFocusableInTouchMode = true
         isClickable = true
         setHorizontallyScrolling(true)
-        setPaddingDp(0, QUERY_TEXT_PADDING_TOP_DP, 0, 0)
+        // Leaves room for the start handle to sit under the first character.
+        setPaddingDp(HANDLE_HALF_WIDTH_DP, 0, 0, 0)
         setTextColor(theme.keyTextColor)
     }
 
@@ -160,7 +161,12 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
                 setColor(theme.accentKeyBackgroundColor)
                 setStroke(ctx.dp(1), theme.accentKeyTextColor)
             },
-            ctx.dp(HANDLE_INSET_DP)
+            ctx.dp(HANDLE_INSET_HORIZONTAL_DP),
+            // Top inset puts the dot's top edge against the text baseline area, so the
+            // handle hugs the bottom of the text instead of floating far below it.
+            ctx.dp(HANDLE_INSET_TOP_DP),
+            ctx.dp(HANDLE_INSET_HORIZONTAL_DP),
+            ctx.dp(HANDLE_INSET_BOTTOM_DP)
         )
         visibility = View.INVISIBLE
     }
@@ -584,12 +590,15 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         const val CURSOR_BLINK_INTERVAL = 500L
         const val SELECTION_ALPHA = 0x55000000
 
-        /** Text sits in the upper part; the lower part is reserved for the selection handles. */
-        const val QUERY_CONTAINER_HEIGHT_DP = 58
-        const val QUERY_TEXT_PADDING_TOP_DP = 12
+        const val QUERY_CONTAINER_HEIGHT_DP = 44
         const val CARET_TOP_MARGIN_DP = 13
-        const val HANDLE_SIZE_DP = 28
-        const val HANDLE_INSET_DP = 8
         const val CARET_HEIGHT_DP = 18
+
+        /** The handle view is wider than the dot it draws so it stays easy to grab. */
+        const val HANDLE_SIZE_DP = 28
+        const val HANDLE_INSET_HORIZONTAL_DP = 8
+        const val HANDLE_INSET_TOP_DP = 15
+        const val HANDLE_INSET_BOTTOM_DP = 1
+        const val HANDLE_HALF_WIDTH_DP = HANDLE_SIZE_DP / 2
     }
 }
