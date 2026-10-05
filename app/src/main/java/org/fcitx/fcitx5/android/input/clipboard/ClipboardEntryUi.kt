@@ -143,6 +143,8 @@ class ClipboardEntryUi(
         textView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateFadeOut() }
     }
 
+    private var excerptTruncated = false
+
     private fun updateFadeOut() {
         val textLayout = textView.layout
         if (!searchResultLayout || textView.visibility != View.VISIBLE || textLayout == null) {
@@ -150,11 +152,13 @@ class ClipboardEntryUi(
             return
         }
         val lastLine = textLayout.lineCount - 1
-        // Either the text was ellipsized, or the line breaker dropped the rest of it silently
-        // (which is what happens to a very long run of characters without break opportunities).
-        val truncated = lastLine >= 0 && (
-            textLayout.getEllipsisCount(lastLine) > 0 ||
-                textLayout.getLineEnd(lastLine) < textView.text.length
+        // Either the excerpt dropped the rest of the text, or the view ellipsized it, or the line
+        // breaker silently dropped it (as it does for long runs without break opportunities).
+        val truncated = excerptTruncated || (
+            lastLine >= 0 && (
+                textLayout.getEllipsisCount(lastLine) > 0 ||
+                    textLayout.getLineEnd(lastLine) < textView.text.length
+                )
             )
         fadeOut.alpha = if (truncated) 1f else 0f
     }
@@ -163,11 +167,13 @@ class ClipboardEntryUi(
         text: String,
         pinned: Boolean,
         previewBitmap: Bitmap? = null,
-        compactMedia: Boolean = false
+        compactMedia: Boolean = false,
+        excerptTruncated: Boolean = false
     ) {
         textView.text = text
         pin.visibility = if (pinned) View.VISIBLE else View.GONE
         fadeOut.alpha = 0f
+        this.excerptTruncated = excerptTruncated
         if (searchResultLayout) {
             if (compactMedia) {
                 preview.visibility = if (previewBitmap != null) View.VISIBLE else View.GONE

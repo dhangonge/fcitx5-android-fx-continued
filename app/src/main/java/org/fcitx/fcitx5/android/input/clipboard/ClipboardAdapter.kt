@@ -38,6 +38,11 @@ abstract class ClipboardAdapter(
     private val maskSensitive: Boolean
 ) : PagingDataAdapter<ClipboardEntry, ClipboardAdapter.ViewHolder>(diffCallback) {
 
+    /**
+     * Text to show in a clipboard entry, plus whether it hides the rest of the original text.
+     */
+    class TextExcerpt(val text: String, val truncated: Boolean = false)
+
     companion object {
         internal val thumbnailCache = object : LruCache<String, Bitmap>(24) {}
         private val cnMainlandMobilePattern = Regex("^1[3-9]\\d{9}$")
@@ -70,9 +75,23 @@ abstract class ClipboardAdapter(
             mask: Boolean = false,
             lines: Int = 4,
             chars: Int = 128
-        ): String = buildString {
+        ): String = excerpt(str, mask, lines, chars).text
+
+        /**
+         * Same as [excerptText], plus whether characters had to be dropped. Callers can use it to
+         * tell the entry view that the excerpt hides the rest of the text (note that text without
+         * line breaks is cut to [chars] characters, so the view may not ellipsize on its own).
+         */
+        fun excerpt(
+            str: String,
+            mask: Boolean = false,
+            lines: Int = 4,
+            chars: Int = 128
+        ): TextExcerpt {
             val length = str.length
             var lineBreak = -1
+            var consumed = 0
+            val builder = StringBuilder()
             for (i in 1..lines) {
                 val start = lineBreak + 1   // skip previous '\n'
                 val excerptEnd = min(start + chars, length)
@@ -80,21 +99,25 @@ abstract class ClipboardAdapter(
                 if (lineBreak < 0) {
                     // no line breaks remaining, substring to end of text
                     if (mask) {
-                        append(ClipboardEntry.BULLET.repeat(excerptEnd - start))
+                        builder.append(ClipboardEntry.BULLET.repeat(excerptEnd - start))
                     } else {
-                        append(str.substring(start, excerptEnd))
+                        builder.append(str, start, excerptEnd)
                     }
+                    consumed = excerptEnd
                     break
                 } else {
                     val end = min(excerptEnd, lineBreak)
                     // append one line exactly
                     if (mask) {
-                        append(ClipboardEntry.BULLET.repeat(end - start))
+                        builder.append(ClipboardEntry.BULLET.repeat(end - start))
                     } else {
-                        appendLine(str.substring(start, end))
+                        builder.append(str, start, end)
                     }
+                    builder.append('\n')
+                    consumed = end + 1
                 }
             }
+            return TextExcerpt(builder.toString(), consumed < length)
         }
 
         internal fun compactUriLabel(context: Context, entry: ClipboardEntry): String {

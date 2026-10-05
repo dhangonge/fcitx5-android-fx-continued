@@ -126,11 +126,20 @@ class ClipboardSearchAdapter(
         val entry = getItem(position)
         val thumbnailKey = ClipboardAdapter.imagePreviewKey(entry)
         val isImage = thumbnailKey != null
-        val displayText = when {
-            isImage -> ""
-            entry.isUriEntry() -> ClipboardAdapter.compactUriLabel(holder.ui.ctx, entry)
-            else -> ClipboardAdapter.excerptText(entry.text, entry.sensitive && maskSensitive)
+        val excerpt = when {
+            isImage -> null
+            entry.isUriEntry() -> ClipboardAdapter.TextExcerpt(
+                ClipboardAdapter.compactUriLabel(holder.ui.ctx, entry)
+            )
+            else -> ClipboardAdapter.excerpt(
+                entry.text,
+                entry.sensitive && maskSensitive,
+                lines = SEARCH_MAX_LINES,
+                chars = SEARCH_EXCERPT_CHARS
+            )
         }
+        val displayText = excerpt?.text.orEmpty()
+        val excerptTruncated = excerpt?.truncated == true
         val cachedThumbnail = thumbnailKey?.let(ClipboardAdapter.thumbnailCache::get)
         holder.thumbnailJob?.cancel()
         holder.boundThumbnailKey = thumbnailKey
@@ -138,14 +147,21 @@ class ClipboardSearchAdapter(
             displayText,
             entry.pinned,
             previewBitmap = cachedThumbnail,
-            compactMedia = isImage
+            compactMedia = isImage,
+            excerptTruncated = excerptTruncated
         )
         if (thumbnailKey != null && cachedThumbnail == null) {
             holder.thumbnailJob = scope.launch {
                 val bitmap = ClipboardAdapter.loadImagePreview(holder.ui.ctx, entry)
                 if (bitmap != null) ClipboardAdapter.thumbnailCache.put(thumbnailKey, bitmap)
                 if (holder.boundThumbnailKey == thumbnailKey) {
-                    holder.ui.setEntry(displayText, entry.pinned, bitmap, compactMedia = true)
+                    holder.ui.setEntry(
+                        displayText,
+                        entry.pinned,
+                        bitmap,
+                        compactMedia = true,
+                        excerptTruncated = excerptTruncated
+                    )
                 }
             }
         }
@@ -193,6 +209,12 @@ class ClipboardSearchAdapter(
     }
 
     private companion object {
+        /** Must match [ClipboardEntryUi]'s search result line limit. */
+        const val SEARCH_MAX_LINES = 5
+
+        /** Enough to fill the lines above with narrow glyphs before the view starts folding. */
+        const val SEARCH_EXCERPT_CHARS = 256
+
         val DiffCallback = object : DiffUtil.ItemCallback<ClipboardEntry>() {
             override fun areItemsTheSame(oldItem: ClipboardEntry, newItem: ClipboardEntry) =
                 oldItem.id == newItem.id
