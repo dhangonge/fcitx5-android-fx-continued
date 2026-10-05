@@ -151,4 +151,10 @@
     <string name="update_release_notes_empty">Release notes: (empty)</string>
     <string name="update_mirror_fields_required">Please fill all mirror fields</string>
     <string name="update_mirror_pattern_invalid">Regex pattern is invalid</string>
+    <string name="clipboard_permission_title">システムクリップボードの権限</string>
+    <string name="clipboard_permission_summary">システムクリップボードの読み書き権限と、関連するバックグラウンド権限をアプリに許可してください</string>
+    <string name="clipboard_permission_dialog_title">システムクリップボードへのアクセスを許可</string>
+    <string name="clipboard_permission_dialog_message">Android にはクリップボードへのアクセスに関する統一された実行時権限ダイアログがありません。通常は、システムのアプリ権限またはプライバシー設定でこのプラグインを手動で許可する必要があります。お使いのシステムに「クリップボードの読み取り」「クリップボードへのアクセス」「バックグラウンドでのクリップボード読み取り」などの項目があれば、ClipboardSync に対して有効にしてください。バックグラウンド実行権限も維持することをおすすめします。注意: Android 10 以降では、アプリがフォアグラウンドでも既定の入力メソッドでもない場合、クリップボードの読み取りが制限されます。これはプラットフォームのポリシーであり、プラグインの不具合ではありません。その場合は通知の「キャプチャして同期」からフォアグラウンドでの単発キャプチャを実行できます。</string>
+    <string name="clipboard_permission_open_app_info">アプリ情報を開く</string>
+    <string name="clipboard_permission_open_permissions">権限設定を開く</string>
 </resources>

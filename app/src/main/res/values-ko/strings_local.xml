@@ -151,4 +151,10 @@
     <string name="update_release_notes_empty">Release notes: (empty)</string>
     <string name="update_mirror_fields_required">Please fill all mirror fields</string>
     <string name="update_mirror_pattern_invalid">Regex pattern is invalid</string>
+    <string name="clipboard_permission_title">시스템 클립보드 권한</string>
+    <string name="clipboard_permission_summary">앱에 시스템 클립보드 읽기/쓰기 권한과 관련 백그라운드 권한을 허용해 주세요</string>
+    <string name="clipboard_permission_dialog_title">시스템 클립보드 접근 허용</string>
+    <string name="clipboard_permission_dialog_message">Android는 클립보드 접근을 위한 통합 런타임 권한 대화상자를 제공하지 않습니다. 보통 시스템의 앱 권한 또는 개인정보 보호 설정에서 이 플러그인을 직접 허용해야 합니다. 시스템에서 ‘클립보드 읽기’, ‘클립보드 접근’, ‘백그라운드에서 클립보드 읽기’ 같은 항목을 제공한다면 ClipboardSync에 대해 켜 주세요. 백그라운드 실행 권한도 유지하는 것이 좋습니다. 참고: Android 10 이상에서는 앱이 포그라운드도 아니고 기본 입력기도 아닐 때 클립보드 읽기가 제한됩니다. 이는 플랫폼 정책이며 플러그인 오류가 아닙니다. 이 경우 알림의 ‘캡처 후 동기화’로 포그라운드에서 한 번 캡처할 수 있습니다.</string>
+    <string name="clipboard_permission_open_app_info">앱 정보 열기</string>
+    <string name="clipboard_permission_open_permissions">권한 설정 열기</string>
 </resources>

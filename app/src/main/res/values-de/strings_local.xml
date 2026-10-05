@@ -151,4 +151,10 @@
     <string name="update_release_notes_empty">Release notes: (empty)</string>
     <string name="update_mirror_fields_required">Please fill all mirror fields</string>
     <string name="update_mirror_pattern_invalid">Regex pattern is invalid</string>
+    <string name="clipboard_permission_title">Systemzwischenablage-Berechtigung</string>
+    <string name="clipboard_permission_summary">Bitte erteile der App die Berechtigung zum Lesen und Schreiben der Systemzwischenablage sowie die zugehörigen Hintergrundberechtigungen</string>
+    <string name="clipboard_permission_dialog_title">Zugriff auf die Systemzwischenablage erlauben</string>
+    <string name="clipboard_permission_dialog_message">Android bietet keinen einheitlichen Laufzeitdialog für den Zugriff auf die Zwischenablage. In der Regel musst du dieses Plugin in den App-Berechtigungen oder Datenschutzeinstellungen des Systems manuell zulassen. Falls dein System Optionen wie „Zwischenablage lesen“, „Zugriff auf Zwischenablage“ oder „Zwischenablage im Hintergrund lesen“ anbietet, aktiviere sie für ClipboardSync. Es wird außerdem empfohlen, die Berechtigung für die Ausführung im Hintergrund beizubehalten. Hinweis: Ab Android 10 wird das Lesen der Zwischenablage eingeschränkt, wenn die App weder im Vordergrund noch die Standard-Eingabemethode ist. Das ist Plattformrichtlinie, kein Fehler des Plugins. In diesem Fall kannst du über die Benachrichtigung „Erfassen und synchronisieren“ eine einmalige Erfassung im Vordergrund auslösen.</string>
+    <string name="clipboard_permission_open_app_info">App-Info öffnen</string>
+    <string name="clipboard_permission_open_permissions">Berechtigungseinstellungen öffnen</string>
 </resources>

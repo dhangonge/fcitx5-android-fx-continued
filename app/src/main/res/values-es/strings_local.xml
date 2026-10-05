@@ -151,4 +151,10 @@
     <string name="update_release_notes_empty">Release notes: (empty)</string>
     <string name="update_mirror_fields_required">Please fill all mirror fields</string>
     <string name="update_mirror_pattern_invalid">Regex pattern is invalid</string>
+    <string name="clipboard_permission_title">Permiso del portapapeles del sistema</string>
+    <string name="clipboard_permission_summary">Concede permiso a la aplicación para leer y escribir el portapapeles del sistema y los permisos de segundo plano relacionados</string>
+    <string name="clipboard_permission_dialog_title">Conceder acceso al portapapeles del sistema</string>
+    <string name="clipboard_permission_dialog_message">Android no ofrece un diálogo unificado de permisos en tiempo de ejecución para acceder al portapapeles. Normalmente tendrás que permitir manualmente este complemento en los permisos de aplicaciones o en los ajustes de privacidad del sistema. Si tu sistema ofrece opciones como «Leer portapapeles», «Acceso al portapapeles» o «Leer portapapeles en segundo plano», actívalas para ClipboardSync. También se recomienda mantener el permiso de ejecución en segundo plano. Nota: Android 10 y versiones posteriores restringen la lectura del portapapeles cuando la aplicación no está en primer plano ni es el método de entrada predeterminado. Es una política de la plataforma, no un error del complemento. En ese caso, puedes usar «Capturar y sincronizar» desde la notificación para una captura puntual en primer plano.</string>
+    <string name="clipboard_permission_open_app_info">Abrir información de la aplicación</string>
+    <string name="clipboard_permission_open_permissions">Abrir ajustes de permisos</string>
 </resources>

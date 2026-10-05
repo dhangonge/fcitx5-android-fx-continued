@@ -151,4 +151,10 @@
     <string name="update_release_notes_empty">Release notes: (empty)</string>
     <string name="update_mirror_fields_required">Please fill all mirror fields</string>
     <string name="update_mirror_pattern_invalid">Regex pattern is invalid</string>
+    <string name="clipboard_permission_title">Разрешение на системный буфер обмена</string>
+    <string name="clipboard_permission_summary">Предоставьте приложению разрешение на чтение и запись системного буфера обмена и связанные разрешения для работы в фоне</string>
+    <string name="clipboard_permission_dialog_title">Разрешить доступ к системному буферу обмена</string>
+    <string name="clipboard_permission_dialog_message">В Android нет единого диалога разрешений времени выполнения для доступа к буферу обмена. Обычно нужно вручную разрешить этот плагин в разрешениях приложений или настройках конфиденциальности системы. Если в вашей системе есть пункты вроде «Чтение буфера обмена», «Доступ к буферу обмена» или «Чтение буфера обмена в фоне», включите их для ClipboardSync. Также рекомендуется сохранить разрешение на работу в фоне. Примечание: начиная с Android 10 чтение буфера обмена ограничивается, когда приложение не находится на переднем плане и не является методом ввода по умолчанию. Это политика платформы, а не ошибка плагина. В этом случае можно воспользоваться пунктом «Захватить и синхронизировать» в уведомлении для однократного захвата на переднем плане.</string>
+    <string name="clipboard_permission_open_app_info">Открыть сведения о приложении</string>
+    <string name="clipboard_permission_open_permissions">Открыть настройки разрешений</string>
 </resources>
