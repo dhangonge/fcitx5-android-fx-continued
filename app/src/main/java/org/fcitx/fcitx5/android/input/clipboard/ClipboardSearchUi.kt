@@ -54,13 +54,11 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
     private var lastState: ClipboardSearchInputState? = null
     private var cursorVisible = true
     private var selecting = false
-    private var draggingEdge = 0
     private var downRawX = 0f
     private var downRawY = 0f
     private var lastTouchX = 0f
     private var lastTouchY = 0f
-    private var handleDownRawX = 0f
-    private var handleDownX = 0f
+    private var handleGrabOffset = 0f
     private var onCursorPositioned: ((Int) -> Unit)? = null
     private var onSelectionStarted: ((Int) -> Unit)? = null
     private var onSelectionEdge: ((Int, Boolean) -> Unit)? = null
@@ -139,12 +137,13 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
 
     private val queryText = textView {
         textSize = 15f
-        gravity = Gravity.CENTER_VERTICAL
+        gravity = Gravity.TOP
         isSingleLine = true
         isFocusable = true
         isFocusableInTouchMode = true
         isClickable = true
         setHorizontallyScrolling(true)
+        setPaddingDp(0, QUERY_TEXT_PADDING_TOP_DP, 0, 0)
         setTextColor(theme.keyTextColor)
     }
 
@@ -173,7 +172,9 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         add(queryText, FrameLayout.LayoutParams(matchParent, matchParent))
         add(
             caretView,
-            FrameLayout.LayoutParams(dp(2), dp(CARET_HEIGHT_DP), Gravity.CENTER_VERTICAL)
+            FrameLayout.LayoutParams(dp(2), dp(CARET_HEIGHT_DP), Gravity.TOP).apply {
+                topMargin = dp(CARET_TOP_MARGIN_DP)
+            }
         )
         add(
             startHandle,
@@ -207,7 +208,7 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
             setColor(theme.keyBackgroundColor)
         }
         add(searchIcon, lParams(dp(40), dp(40)))
-        add(queryContainer, lParams(0, dp(44)) { weight = 1f })
+        add(queryContainer, lParams(0, dp(QUERY_CONTAINER_HEIGHT_DP)) { weight = 1f })
         add(clearButton, lParams(dp(40), dp(40)))
     }
 
@@ -431,26 +432,19 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         handle.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    draggingEdge = if (isStart) -1 else 1
-                    handleDownRawX = event.rawX
-                    handleDownX = handle.x
+                    // Keep the grab point under the finger so the handle does not jump.
+                    handleGrabOffset = event.rawX - (handle.x + ctx.dp(HANDLE_SIZE_DP) / 2f)
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    val x = handleDownX + (event.rawX - handleDownRawX)
-                    handle.x = x
-                    onSelectionEdge?.invoke(
-                        offsetForX(x + ctx.dp(HANDLE_SIZE_DP) / 2f),
-                        isStart
-                    )
+                    // The handle is positioned from the (clamped) selection state, so it
+                    // stops at the text edges instead of following the finger out of range.
+                    onSelectionEdge?.invoke(offsetForX(event.rawX - handleGrabOffset), isStart)
                     true
                 }
 
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    draggingEdge = 0
-                    true
-                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
 
                 else -> false
             }
@@ -579,16 +573,23 @@ class ClipboardSearchUi(override val ctx: Context, private val theme: Theme) : U
         endHandle.visibility = if (hasSelection) View.VISIBLE else View.INVISIBLE
         if (!hasSelection) return
         val half = ctx.dp(HANDLE_SIZE_DP) / 2f
-        // While dragging a handle the finger owns its position, so don't fight it.
-        if (draggingEdge != -1) startHandle.x = xForOffset(state.selectionStart) - half
-        if (draggingEdge != 1) endHandle.x = xForOffset(state.selectionEnd) - half
+        // Clamp so a handle at the text edge stays fully visible and grabbable.
+        val width = (if (queryContainer.width > 0) queryContainer.width else queryText.width)
+        val maxX = (width - ctx.dp(HANDLE_SIZE_DP)).coerceAtLeast(0).toFloat()
+        startHandle.x = (xForOffset(state.selectionStart) - half).coerceIn(0f, maxX)
+        endHandle.x = (xForOffset(state.selectionEnd) - half).coerceIn(0f, maxX)
     }
 
     private companion object {
         const val CURSOR_BLINK_INTERVAL = 500L
         const val SELECTION_ALPHA = 0x55000000
-        const val HANDLE_SIZE_DP = 32
-        const val HANDLE_INSET_DP = 10
+
+        /** Text sits in the upper part; the lower part is reserved for the selection handles. */
+        const val QUERY_CONTAINER_HEIGHT_DP = 58
+        const val QUERY_TEXT_PADDING_TOP_DP = 12
+        const val CARET_TOP_MARGIN_DP = 13
+        const val HANDLE_SIZE_DP = 28
+        const val HANDLE_INSET_DP = 8
         const val CARET_HEIGHT_DP = 18
     }
 }
