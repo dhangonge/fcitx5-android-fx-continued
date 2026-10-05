@@ -18,9 +18,14 @@ git apply ../../../../../../plugin/rime/src/main/cpp/fcitx5-rime/fcitx5-alt-trig
 popd
 
 # update prebuilt
+# fxliang's prebuilt snapshot predates nlohmann_json, which the upstream
+# fcitx5-chinese-addons imported here needs; keep that path from the pinned commit
 echo "updating prebuilt"
+prebuilt_pin=$(git ls-tree HEAD -- lib/fcitx5/src/main/cpp/prebuilt | awk '{print $3}')
 pushd lib/fcitx5/src/main/cpp/prebuilt
 git remote add gh https://github.com/fxliang/prebuilt.git || git remote set-url gh https://github.com/fxliang/prebuilt.git
 git fetch -v gh master
 git checkout gh/master
+git fetch -v origin "$prebuilt_pin" || true
+git checkout "$prebuilt_pin" -- nlohmann_json || echo "WARNING: failed to restore prebuilt nlohmann_json"
 popd
