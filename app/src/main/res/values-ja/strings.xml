@@ -265,7 +265,7 @@
     <string name="import_user_data">ユーザーデータをインポートする</string>
     <string name="exception_user_data_filename">%1$s のファイル拡張子はfcitx5-androidのユーザーデータを示していません</string>
     <string name="exception_user_data_metadata">ユーザーデータのメタデータが見つかりません</string>
-    <string name="exception_user_data_package_name_mismatch">ユーザーデータが現在のアプリに適合しません</string>
+    <string name="exception_user_data_package_name_mismatch">ユーザーデータが現在のアプリに適合しません（検出: %1$s）</string>
     <string name="user_data_imported">%1$s のユーザーデータをインポートしました。再起動します…</string>
     <string name="restart_channel">アプリの再起動</string>
     <string name="restart_notify_msg">アプリが再起動されました。ここをクリックして開きます</string>

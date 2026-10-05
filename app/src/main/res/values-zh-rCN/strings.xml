@@ -410,7 +410,7 @@
     <string name="import_user_data">导入用户数据</string>
     <string name="exception_user_data_filename">文件 %1$s 的拓展名不是 fcitx5-android 用户数据</string>
     <string name="exception_user_data_metadata">找不到用户数据的元数据</string>
-    <string name="exception_user_data_package_name_mismatch">用户数据与当前应用不匹配</string>
+    <string name="exception_user_data_package_name_mismatch">用户数据与当前应用不匹配（发现：%1$s）</string>
     <string name="user_data_imported">已导入来自 %1$s 的用户数据，正在重启…</string>
     <string name="confirm_import_user_data">导入用户数据会覆盖本地设置与输入历史，并且在重启应用后才能生效。继续吗？</string>
     <string name="restart_channel">应用重启</string>

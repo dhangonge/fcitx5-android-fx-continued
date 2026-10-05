@@ -271,7 +271,7 @@
     <string name="import_user_data">Импорт пользовательских данных</string>
     <string name="exception_user_data_filename">Расширение имени файла %1$s не указывает на пользовательские данные fcitx5-android</string>
     <string name="exception_user_data_metadata">Невозможно найти метаданные пользовательских данных</string>
-    <string name="exception_user_data_package_name_mismatch">Пользовательские данные не соответствуют текущему приложению</string>
+    <string name="exception_user_data_package_name_mismatch">Пользовательские данные не соответствуют текущему приложению (найдено: %1$s)</string>
     <string name="user_data_imported">Пользовательские данные %1$s  были импортированы, перезапуск…</string>
     <string name="confirm_import_user_data">Импорт пользовательских данных переопределит локальные настройки и историю ввода, и потребуется перезапустить приложение, чтобы изменения вступили в силу. Продолжить?</string>
     <string name="restart_channel">Перезапуск приложения</string>

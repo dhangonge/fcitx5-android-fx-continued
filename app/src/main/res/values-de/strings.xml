@@ -567,7 +567,7 @@
     <string name="exception_theme_src_image">Originalbild des Theme-Hintergrunds konnte nicht gespeichert werden</string>
     <string name="exception_user_data_filename">Datei %1$s hat keine fcitx5-android-Benutzerdaten-Erweiterung</string>
     <string name="exception_user_data_metadata">Metadaten der Benutzerdaten nicht gefunden</string>
-    <string name="exception_user_data_package_name_mismatch">Benutzerdaten passen nicht zu dieser App</string>
+    <string name="exception_user_data_package_name_mismatch">Benutzerdaten passen nicht zu dieser App (gefunden: %1$s)</string>
     <string name="expand_candidates_list">Kandidatenliste erweitern</string>
     <string name="expand_keypress_area">Tastenbereich bis zum Rand erweitern</string>
     <string name="expand_toolbar">Werkzeugleiste erweitern</string>

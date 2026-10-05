@@ -358,7 +358,7 @@
     <string name="import_user_data">匯入使用者資料</string>
     <string name="exception_user_data_filename">%1$s 副檔名並不是 fcitx5-android 使用者資料</string>
     <string name="exception_user_data_metadata">無法找到使用者資料的中繼資料</string>
-    <string name="exception_user_data_package_name_mismatch">使用者資料與目前應用程式不符合</string>
+    <string name="exception_user_data_package_name_mismatch">使用者資料與目前應用程式不符合（發現：%1$s）</string>
     <string name="user_data_imported">已匯入來自 %1$s 的使用者資料，正在重新啟動</string>
     <string name="confirm_import_user_data">匯入使用者資料將會覆寫本機設定與輸入歷史，並且需要重新啟動來使變動生效。是否繼續？</string>
     <string name="restart_channel">重新啟動應用程式</string>
