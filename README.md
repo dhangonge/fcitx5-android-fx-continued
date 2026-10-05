@@ -84,8 +84,12 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk CMAKE_BUILD_PARALLEL_LEVEL=2 \
 
 ## 状态
 
-刚起步，暂无 tagged release。构建已验证可用：`:app:assembleDebug` 可产出
-34 MB 的 `arm64-v8a` APK。
+已经有可安装的预编译包：见
+[Releases](https://github.com/dhangonge/fcitx5-android-fx-continued/releases)。
+当前只构建 `arm64-v8a`（主流 Android 手机都是这个 ABI），APK 用本仓库的发布密钥签名，
+主程序与插件同一签名，可以直接互相安装。
+
+源码构建同样验证可用：`:app:assembleDebug` 可产出 34 MB 的 `arm64-v8a` APK。
 
 ## 反馈
 
