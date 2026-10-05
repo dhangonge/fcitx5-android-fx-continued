@@ -82,9 +82,12 @@ class ClipboardEntryUi(
     /**
      * Fades the bottom of a truncated search result into the card colour, rounded like the
      * card itself, so a clipped entry reads as "there is more text below".
+     *
+     * Kept fully laid out and switched via [View.setAlpha]: toggling visibility from a layout
+     * callback would need another layout pass before it draws anything.
      */
     private val fadeOut = View(ctx).apply {
-        visibility = View.GONE
+        alpha = 0f
         background = GradientDrawable().apply {
             orientation = GradientDrawable.Orientation.TOP_BOTTOM
             colors = intArrayOf(Color.TRANSPARENT, theme.clipboardEntryColor)
@@ -142,10 +145,18 @@ class ClipboardEntryUi(
 
     private fun updateFadeOut() {
         val textLayout = textView.layout
-        val truncated = searchResultLayout && textView.visibility == View.VISIBLE &&
-            textLayout != null && textLayout.lineCount > 0 &&
-            textLayout.getEllipsisCount(textLayout.lineCount - 1) > 0
-        fadeOut.visibility = if (truncated) View.VISIBLE else View.GONE
+        if (!searchResultLayout || textView.visibility != View.VISIBLE || textLayout == null) {
+            fadeOut.alpha = 0f
+            return
+        }
+        val lastLine = textLayout.lineCount - 1
+        // Either the text was ellipsized, or the line breaker dropped the rest of it silently
+        // (which is what happens to a very long run of characters without break opportunities).
+        val truncated = lastLine >= 0 && (
+            textLayout.getEllipsisCount(lastLine) > 0 ||
+                textLayout.getLineEnd(lastLine) < textView.text.length
+            )
+        fadeOut.alpha = if (truncated) 1f else 0f
     }
 
     fun setEntry(
@@ -156,7 +167,7 @@ class ClipboardEntryUi(
     ) {
         textView.text = text
         pin.visibility = if (pinned) View.VISIBLE else View.GONE
-        fadeOut.visibility = View.GONE
+        fadeOut.alpha = 0f
         if (searchResultLayout) {
             if (compactMedia) {
                 preview.visibility = if (previewBitmap != null) View.VISIBLE else View.GONE
