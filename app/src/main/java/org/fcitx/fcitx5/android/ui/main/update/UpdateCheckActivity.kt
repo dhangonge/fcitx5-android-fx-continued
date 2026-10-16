@@ -210,9 +210,11 @@ class UpdateCheckActivity : AppCompatActivity() {
                 } else {
                     ""
                 }
-                // Extract version string from asset name (e.g. "0.1.2-352-g6f8634b9" or "latest-352-g6f8634b9")
+                // Extract version string from asset name (e.g. "0.1.3-1-0-g3229a054" or
+                // "latest-352-g6f8634b9"); the version part itself may carry a suffix
+                // (`<upstream>-<fork release>`), so several dash-number groups are allowed.
                 val versionFromAsset = versionFallback.let { name ->
-                    Regex("""([\w.]+-\d+-g[0-9a-fA-F]+)""").find(name)?.value
+                    Regex("""([\w.]+(?:-\d+)+-g[0-9a-fA-F]+)""").find(name)?.value
                 }
                 val displayVersion = versionFromAsset
                     ?: release.tagName.ifBlank { release.releaseName }

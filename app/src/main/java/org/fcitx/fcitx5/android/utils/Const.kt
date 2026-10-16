@@ -8,7 +8,7 @@ import org.fcitx.fcitx5.android.BuildConfig
 
 object Const {
     const val versionName = "${BuildConfig.VERSION_NAME}-${BuildConfig.BUILD_TYPE}"
-    const val githubRepo = "https://github.com/fxliang/fcitx5-android"
+    const val githubRepo = "https://github.com/dhangonge/fcitx5-android-fx-continued"
     const val licenseSpdxId = "LGPL-2.1-or-later"
     const val licenseUrl = "https://www.gnu.org/licenses/old-licenses/lgpl-2.1"
     const val privacyPolicyUrl = "https://fcitx5-android.github.io/privacy/"

@@ -16,9 +16,17 @@ object Versions {
     const val defaultNDK = "28.0.13004108"
     const val defaultBuildTools = "36.1.0"
 
-    // NOTE: increase this value to bump version code
-    const val baseVersionCode = 12
-    const val baseVersionName = "0.1.4"
+    // NOTE: increase this value to bump version code. It is a monotonic counter of its
+    // own: a published build must never reuse a version code, however the version name
+    // moves.
+    const val baseVersionCode = 13
+
+    // Version name is `<upstream release>-<fork release counter>` (e.g. `0.1.3-1`); the
+    // build takes it from `git describe --tags --long` (ProjectExtensions.buildVersionName),
+    // so the release tag decides it and these constants are only the no-git fallback.
+    const val upstreamVersionName = "0.1.3"
+    const val forkVersionName = "1"
+    const val baseVersionName = "$upstreamVersionName-$forkVersionName"
 
     val supportedABIs = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
     const val fallbackABI = "arm64-v8a"
