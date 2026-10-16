@@ -157,4 +157,16 @@
     <string name="clipboard_permission_dialog_message">Android no ofrece un diálogo unificado de permisos en tiempo de ejecución para acceder al portapapeles. Normalmente tendrás que permitir manualmente este complemento en los permisos de aplicaciones o en los ajustes de privacidad del sistema. Si tu sistema ofrece opciones como «Leer portapapeles», «Acceso al portapapeles» o «Leer portapapeles en segundo plano», actívalas para ClipboardSync. También se recomienda mantener el permiso de ejecución en segundo plano. Nota: Android 10 y versiones posteriores restringen la lectura del portapapeles cuando la aplicación no está en primer plano ni es el método de entrada predeterminado. Es una política de la plataforma, no un error del complemento. En ese caso, puedes usar «Capturar y sincronizar» desde la notificación para una captura puntual en primer plano.</string>
     <string name="clipboard_permission_open_app_info">Abrir información de la aplicación</string>
     <string name="clipboard_permission_open_permissions">Abrir ajustes de permisos</string>
+    <string name="about_build_version_title">Versión de compilación actual</string>
+    <string name="about_build_version_unknown">Desconocido</string>
+    <string name="about_server_clipcascade_summary">Toca para abrir el proyecto de ClipCascade en GitHub</string>
+    <string name="about_server_oneclip_summary">Toca para abrir la página de OneClip</string>
+    <string name="about_server_syncclipboard_summary">Toca para abrir el proyecto de SyncClipboard en GitHub</string>
+    <string name="about_supported_servers_title">Servidores compatibles</string>
+    <string name="background_keep_alive_summary">Activa el servicio en primer plano, la reconexión y la autorrecuperación para reducir las desconexiones en segundo plano</string>
+    <string name="background_keep_alive_title">Sincronización persistente en segundo plano</string>
+    <string name="battery_optimization_summary">Se recomienda añadir el complemento a la lista blanca de segundo plano para evitar restricciones con la pantalla apagada</string>
+    <string name="battery_optimization_summary_disabled">Aún afectado por la optimización de batería; se recomienda permitir la ejecución en segundo plano</string>
+    <string name="battery_optimization_summary_enabled">La optimización de batería está actualmente ignorada</string>
+    <string name="battery_optimization_title">Optimización de batería</string>
 </resources>

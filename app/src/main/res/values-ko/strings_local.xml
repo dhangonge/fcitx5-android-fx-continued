@@ -157,4 +157,16 @@
     <string name="clipboard_permission_dialog_message">Android는 클립보드 접근을 위한 통합 런타임 권한 대화상자를 제공하지 않습니다. 보통 시스템의 앱 권한 또는 개인정보 보호 설정에서 이 플러그인을 직접 허용해야 합니다. 시스템에서 ‘클립보드 읽기’, ‘클립보드 접근’, ‘백그라운드에서 클립보드 읽기’ 같은 항목을 제공한다면 ClipboardSync에 대해 켜 주세요. 백그라운드 실행 권한도 유지하는 것이 좋습니다. 참고: Android 10 이상에서는 앱이 포그라운드도 아니고 기본 입력기도 아닐 때 클립보드 읽기가 제한됩니다. 이는 플랫폼 정책이며 플러그인 오류가 아닙니다. 이 경우 알림의 ‘캡처 후 동기화’로 포그라운드에서 한 번 캡처할 수 있습니다.</string>
     <string name="clipboard_permission_open_app_info">앱 정보 열기</string>
     <string name="clipboard_permission_open_permissions">권한 설정 열기</string>
+    <string name="about_build_version_title">현재 빌드 버전</string>
+    <string name="about_build_version_unknown">알 수 없음</string>
+    <string name="about_server_clipcascade_summary">탭하여 ClipCascade GitHub 프로젝트 열기</string>
+    <string name="about_server_oneclip_summary">탭하여 OneClip 홈페이지 열기</string>
+    <string name="about_server_syncclipboard_summary">탭하여 SyncClipboard GitHub 프로젝트 열기</string>
+    <string name="about_supported_servers_title">지원하는 서버</string>
+    <string name="background_keep_alive_summary">포그라운드 서비스, 재연결, 자동 복구를 활성화하여 백그라운드 연결 끊김을 줄입니다</string>
+    <string name="background_keep_alive_title">백그라운드 상시 동기화</string>
+    <string name="battery_optimization_summary">화면이 꺼져 있을 때 제한을 피하려면 플러그인을 백그라운드 허용 목록에 추가하는 것이 좋습니다</string>
+    <string name="battery_optimization_summary_disabled">아직 배터리 최적화의 영향을 받고 있습니다. 백그라운드 실행 허용을 권장합니다</string>
+    <string name="battery_optimization_summary_enabled">현재 배터리 최적화에서 제외되어 있습니다</string>
+    <string name="battery_optimization_title">배터리 최적화</string>
 </resources>

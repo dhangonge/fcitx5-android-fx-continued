@@ -157,4 +157,16 @@
     <string name="clipboard_permission_dialog_message">Android bietet keinen einheitlichen Laufzeitdialog für den Zugriff auf die Zwischenablage. In der Regel musst du dieses Plugin in den App-Berechtigungen oder Datenschutzeinstellungen des Systems manuell zulassen. Falls dein System Optionen wie „Zwischenablage lesen“, „Zugriff auf Zwischenablage“ oder „Zwischenablage im Hintergrund lesen“ anbietet, aktiviere sie für ClipboardSync. Es wird außerdem empfohlen, die Berechtigung für die Ausführung im Hintergrund beizubehalten. Hinweis: Ab Android 10 wird das Lesen der Zwischenablage eingeschränkt, wenn die App weder im Vordergrund noch die Standard-Eingabemethode ist. Das ist Plattformrichtlinie, kein Fehler des Plugins. In diesem Fall kannst du über die Benachrichtigung „Erfassen und synchronisieren“ eine einmalige Erfassung im Vordergrund auslösen.</string>
     <string name="clipboard_permission_open_app_info">App-Info öffnen</string>
     <string name="clipboard_permission_open_permissions">Berechtigungseinstellungen öffnen</string>
+    <string name="about_build_version_title">Aktuelle Build-Version</string>
+    <string name="about_build_version_unknown">Unbekannt</string>
+    <string name="about_server_clipcascade_summary">Tippen, um das ClipCascade-GitHub-Projekt zu öffnen</string>
+    <string name="about_server_oneclip_summary">Tippen, um die OneClip-Homepage zu öffnen</string>
+    <string name="about_server_syncclipboard_summary">Tippen, um das SyncClipboard-GitHub-Projekt zu öffnen</string>
+    <string name="about_supported_servers_title">Unterstützte Server</string>
+    <string name="background_keep_alive_summary">Vordergrunddienst, Wiederverbindung und Selbstwiederherstellung aktivieren, um Verbindungsabbrüche im Hintergrund zu verringern</string>
+    <string name="background_keep_alive_title">Dauerhafte Synchronisierung im Hintergrund</string>
+    <string name="battery_optimization_summary">Empfohlen: Plugin zur Whitelist für den Hintergrund hinzufügen, um Einschränkungen bei ausgeschaltetem Bildschirm zu vermeiden</string>
+    <string name="battery_optimization_summary_disabled">Noch von der Batterieoptimierung betroffen; Ausführung im Hintergrund erlauben wird empfohlen</string>
+    <string name="battery_optimization_summary_enabled">Batterieoptimierung wird derzeit ignoriert</string>
+    <string name="battery_optimization_title">Batterieoptimierung</string>
 </resources>

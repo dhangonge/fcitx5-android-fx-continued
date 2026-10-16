@@ -157,4 +157,16 @@
     <string name="clipboard_permission_dialog_message">В Android нет единого диалога разрешений времени выполнения для доступа к буферу обмена. Обычно нужно вручную разрешить этот плагин в разрешениях приложений или настройках конфиденциальности системы. Если в вашей системе есть пункты вроде «Чтение буфера обмена», «Доступ к буферу обмена» или «Чтение буфера обмена в фоне», включите их для ClipboardSync. Также рекомендуется сохранить разрешение на работу в фоне. Примечание: начиная с Android 10 чтение буфера обмена ограничивается, когда приложение не находится на переднем плане и не является методом ввода по умолчанию. Это политика платформы, а не ошибка плагина. В этом случае можно воспользоваться пунктом «Захватить и синхронизировать» в уведомлении для однократного захвата на переднем плане.</string>
     <string name="clipboard_permission_open_app_info">Открыть сведения о приложении</string>
     <string name="clipboard_permission_open_permissions">Открыть настройки разрешений</string>
+    <string name="about_build_version_title">Текущая версия сборки</string>
+    <string name="about_build_version_unknown">Неизвестно</string>
+    <string name="about_server_clipcascade_summary">Нажмите, чтобы открыть проект ClipCascade на GitHub</string>
+    <string name="about_server_oneclip_summary">Нажмите, чтобы открыть домашнюю страницу OneClip</string>
+    <string name="about_server_syncclipboard_summary">Нажмите, чтобы открыть проект SyncClipboard на GitHub</string>
+    <string name="about_supported_servers_title">Поддерживаемые серверы</string>
+    <string name="background_keep_alive_summary">Включите службу переднего плана, переподключение и самовосстановление, чтобы уменьшить обрывы связи в фоне</string>
+    <string name="background_keep_alive_title">Постоянная синхронизация в фоне</string>
+    <string name="battery_optimization_summary">Рекомендуется добавить плагин в список исключений, чтобы избежать ограничений при выключенном экране</string>
+    <string name="battery_optimization_summary_disabled">Всё ещё действует оптимизация батареи; рекомендуется разрешить фоновую работу</string>
+    <string name="battery_optimization_summary_enabled">Оптимизация батареи в настоящее время отключена</string>
+    <string name="battery_optimization_title">Оптимизация батареи</string>
 </resources>

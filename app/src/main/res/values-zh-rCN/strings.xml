@@ -885,4 +885,5 @@
     <string name="icon_theme_import_dialog_title">导入图标主题</string>
     <string name="icon_theme_overwrite_confirm">覆盖已存在的图标主题 \"%s\"？</string>
     <string name="icon_theme_new">新建</string>
+    <string name="icon_theme_no_custom_theme">没有可用的自定义图标主题</string>
 </resources>

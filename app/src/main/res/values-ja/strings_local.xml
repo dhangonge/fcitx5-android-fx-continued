@@ -157,4 +157,16 @@
     <string name="clipboard_permission_dialog_message">Android にはクリップボードへのアクセスに関する統一された実行時権限ダイアログがありません。通常は、システムのアプリ権限またはプライバシー設定でこのプラグインを手動で許可する必要があります。お使いのシステムに「クリップボードの読み取り」「クリップボードへのアクセス」「バックグラウンドでのクリップボード読み取り」などの項目があれば、ClipboardSync に対して有効にしてください。バックグラウンド実行権限も維持することをおすすめします。注意: Android 10 以降では、アプリがフォアグラウンドでも既定の入力メソッドでもない場合、クリップボードの読み取りが制限されます。これはプラットフォームのポリシーであり、プラグインの不具合ではありません。その場合は通知の「キャプチャして同期」からフォアグラウンドでの単発キャプチャを実行できます。</string>
     <string name="clipboard_permission_open_app_info">アプリ情報を開く</string>
     <string name="clipboard_permission_open_permissions">権限設定を開く</string>
+    <string name="about_build_version_title">現在のビルドバージョン</string>
+    <string name="about_build_version_unknown">不明</string>
+    <string name="about_server_clipcascade_summary">タップして ClipCascade の GitHub プロジェクトを開く</string>
+    <string name="about_server_oneclip_summary">タップして OneClip のホームページを開く</string>
+    <string name="about_server_syncclipboard_summary">タップして SyncClipboard の GitHub プロジェクトを開く</string>
+    <string name="about_supported_servers_title">対応サーバー</string>
+    <string name="background_keep_alive_summary">フォアグラウンドサービス・再接続・自己復旧を有効にして、バックグラウンドでの切断を減らします</string>
+    <string name="background_keep_alive_title">バックグラウンド常駐同期</string>
+    <string name="battery_optimization_summary">画面オフ時の制限を避けるため、プラグインをバッテリー最適化の対象外に設定することをおすすめします</string>
+    <string name="battery_optimization_summary_disabled">まだバッテリー最適化の対象です。バックグラウンド実行を許可することをおすすめします</string>
+    <string name="battery_optimization_summary_enabled">バッテリー最適化は現在無視されています</string>
+    <string name="battery_optimization_title">バッテリー最適化</string>
 </resources>
