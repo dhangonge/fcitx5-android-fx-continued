@@ -24,4 +24,11 @@
     <string name="installing">正在安裝…</string>
     <string name="model_size">%1$s MB</string>
     <string name="threads">解碼執行緒數：%1$d</string>
+    <string name="service_streaming">小企鵝語音 · 串流</string>
+    <string name="service_batch">小企鵝語音 · Whisper</string>
+    <string name="streaming_section">串流（邊說邊出字）</string>
+    <string name="batch_section">Whisper（說完再整句轉寫）</string>
+    <string name="active_streaming">串流模型：%1$s</string>
+    <string name="active_batch">Whisper 模型：%1$s</string>
+    <string name="imported_hint">匯入的模型會按類型自動歸入對應引擎。</string>
 </resources>

@@ -137,8 +137,7 @@ object ModelInstaller {
                 source.name
             }
             // Validate before touching anything already installed under that name.
-            val model = StreamingModel.fromDirectory(source)
-            if (model == null) {
+            if (!isUsable(source)) {
                 Log.w(TAG, "${archive.name} contains no usable model")
                 notifyError(context, "Archive contains no usable model")
                 return null
@@ -155,13 +154,12 @@ object ModelInstaller {
                 notifyError(context, "Could not move model into place")
                 return null
             }
-            val verified = StreamingModel.fromDirectory(target)
-            if (verified == null) {
+            if (!isUsable(target)) {
                 target.deleteRecursively()
                 notifyError(context, "Unpacked model is incomplete")
                 return null
             }
-            return verified.id
+            return name
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to install ${archive.name}", e)
             notifyError(context, e.message ?: "Extraction failed")
@@ -174,6 +172,10 @@ object ModelInstaller {
             archive.delete()
         }
     }
+
+    /** A directory counts as a model when either engine can load it. */
+    private fun isUsable(dir: File): Boolean =
+        StreamingModel.fromDirectory(dir) != null || BatchModel.fromDirectory(dir) != null
 
     fun importFromUri(context: Context, uri: Uri, displayName: String?): String? {
         val safeName = (displayName ?: "import.tar.bz2").substringAfterLast('/')

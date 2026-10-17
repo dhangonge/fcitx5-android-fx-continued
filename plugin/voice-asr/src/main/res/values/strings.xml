@@ -24,4 +24,11 @@
     <string name="installing">Installing…</string>
     <string name="model_size">%1$s MB</string>
     <string name="threads">Decoding threads: %1$d</string>
+    <string name="service_streaming">Penguin Voice · streaming</string>
+    <string name="service_batch">Penguin Voice · Whisper</string>
+    <string name="streaming_section">Streaming (words appear while you speak)</string>
+    <string name="batch_section">Whisper (transcribes after you stop)</string>
+    <string name="active_streaming">Streaming model: %1$s</string>
+    <string name="active_batch">Whisper model: %1$s</string>
+    <string name="imported_hint">Imports land in the matching engine automatically.</string>
 </resources>

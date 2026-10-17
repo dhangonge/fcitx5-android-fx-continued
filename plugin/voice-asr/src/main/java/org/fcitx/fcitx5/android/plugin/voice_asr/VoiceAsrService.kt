@@ -13,11 +13,11 @@ import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
 import org.fcitx.fcitx5.android.common.ipc.VoiceInputIpc
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelStore
+import org.fcitx.fcitx5.android.plugin.voice_asr.engine.Pcm
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.StreamingEngine
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.sqrt
 
 /**
  * Offline streaming ASR provider.
@@ -61,7 +61,7 @@ class VoiceAsrService : Service() {
         override fun isAvailable(): Boolean {
             // availability is about having a model on disk, not about it being
             // loaded: a cold start still works, it is just slower to answer.
-            val available = runCatching { ModelStore.active(this@VoiceAsrService) != null }
+            val available = runCatching { ModelStore.activeStreaming(this@VoiceAsrService) != null }
                 .getOrDefault(false)
             if (available) preloadEngine()
             return available
@@ -160,7 +160,7 @@ class VoiceAsrService : Service() {
     }
 
     private fun ensureEngine(): StreamingEngine? {
-        val model = ModelStore.active(this) ?: return null
+        val model = ModelStore.activeStreaming(this) ?: return null
         engine?.let { if (engineModelId == model.id) return it }
         closeEngine()
         Log.i(TAG, "Loading model ${model.id} (${model.sizeBytes / 1024 / 1024} MiB)")
@@ -184,9 +184,9 @@ class VoiceAsrService : Service() {
             val active = session ?: return
             val cb = callback ?: return
             if (!sessionActive) return
-            val samples = toFloatSamples(pcm)
+            val samples = Pcm.toFloatSamples(pcm, 0, pcm.size)
             if (samples.isEmpty()) return
-            cb.onVolumeLevel(rmsOf(samples))
+            cb.onVolumeLevel(Pcm.rmsOf(samples))
             val text = active.accept(samples, sampleRate)
             if (text.isNotBlank() && text != lastPartial) {
                 lastPartial = text
@@ -253,25 +253,6 @@ class VoiceAsrService : Service() {
     /** Reads the pending transcript and closes the stream. */
     private fun StreamingEngine.Session.finishOrNull(): String? =
         runCatching { finish() }.getOrNull()
-
-    private fun toFloatSamples(pcm: ByteArray): FloatArray {
-        val count = pcm.size / 2
-        if (count == 0) return FloatArray(0)
-        val out = FloatArray(count)
-        for (i in 0 until count) {
-            val lo = pcm[2 * i].toInt() and 0xFF
-            val hi = pcm[2 * i + 1].toInt()
-            val value = (hi shl 8) or lo
-            out[i] = value / 32768f
-        }
-        return out
-    }
-
-    private fun rmsOf(samples: FloatArray): Int {
-        var sum = 0.0
-        for (s in samples) sum += (s * 32767f) * (s * 32767f)
-        return sqrt(sum / samples.size).toInt()
-    }
 
     override fun onBind(intent: Intent?): IBinder {
         Log.i(TAG, "onBind: ${intent?.action}")

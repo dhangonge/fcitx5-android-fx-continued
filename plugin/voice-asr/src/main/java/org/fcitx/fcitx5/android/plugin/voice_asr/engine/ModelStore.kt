@@ -8,40 +8,48 @@ import android.content.Context
 import java.io.File
 
 /**
- * Where streaming models live on disk: one directory per model under
- * filesDir/models/. A directory counts as installed only when it holds the whole
- * transducer triple plus tokens.txt.
+ * Where models live on disk: one directory per model under filesDir/models/.
+ *
+ * A directory only counts as installed when it holds everything the matching
+ * engine needs, so a half-unpacked folder is never offered to the user. The
+ * active model is remembered per engine kind, since the two providers are
+ * independent entries in the IME's voice input list.
  */
 object ModelStore {
 
     private const val MODELS_DIR = "models"
     private const val PREFS = "voice_asr"
-    private const val KEY_ACTIVE = "active_model"
+    private const val KEY_ACTIVE_STREAMING = "active_model"
+    private const val KEY_ACTIVE_BATCH = "active_model_batch"
+    private const val DEFAULT_THREADS = 2
 
     fun modelsDir(context: Context): File = File(context.filesDir, MODELS_DIR)
 
-    fun available(context: Context): List<StreamingModel> {
+    private fun subdirs(context: Context): List<File> {
         val dir = modelsDir(context)
         if (!dir.isDirectory) return emptyList()
         return dir.listFiles().orEmpty()
-            .filter { it.isDirectory }
-            .mapNotNull { StreamingModel.fromDirectory(it) }
-            .sortedBy { it.id }
+            .filter { it.isDirectory && !it.name.startsWith(".") }
+            .sortedBy { it.name }
     }
 
-    /** The model the user picked, or the only installed one when nothing is pinned. */
-    fun active(context: Context): StreamingModel? {
-        val installed = available(context)
-        if (installed.isEmpty()) return null
-        val picked = prefs(context).getString(KEY_ACTIVE, null)
-        return installed.firstOrNull { it.id == picked } ?: installed.first()
-    }
+    fun streaming(context: Context): List<StreamingModel> =
+        subdirs(context).mapNotNull { StreamingModel.fromDirectory(it) }
 
-    fun setActive(context: Context, id: String?) {
-        prefs(context).edit().apply {
-            if (id == null) remove(KEY_ACTIVE) else putString(KEY_ACTIVE, id)
-        }.apply()
-    }
+    fun batch(context: Context): List<BatchModel> =
+        subdirs(context).mapNotNull { BatchModel.fromDirectory(it) }
+
+    fun activeStreaming(context: Context): StreamingModel? =
+        pickActive(streaming(context), prefs(context).getString(KEY_ACTIVE_STREAMING, null)) { it.id }
+
+    fun activeBatch(context: Context): BatchModel? =
+        pickActive(batch(context), prefs(context).getString(KEY_ACTIVE_BATCH, null)) { it.id }
+
+    fun setActiveStreaming(context: Context, id: String?) =
+        putString(context, KEY_ACTIVE_STREAMING, id)
+
+    fun setActiveBatch(context: Context, id: String?) =
+        putString(context, KEY_ACTIVE_BATCH, id)
 
     fun numThreads(context: Context): Int =
         prefs(context).getInt("num_threads", DEFAULT_THREADS).coerceIn(1, 8)
@@ -50,13 +58,28 @@ object ModelStore {
         prefs(context).edit().putInt("num_threads", threads.coerceIn(1, 8)).apply()
     }
 
-    fun delete(context: Context, model: StreamingModel): Boolean {
-        if (active(context)?.id == model.id) setActive(context, null)
-        return model.dir.deleteRecursively()
+    /** Removes an installed model, including any "active" mark pointing at it. */
+    fun delete(context: Context, dir: File): Boolean {
+        if (prefs(context).getString(KEY_ACTIVE_STREAMING, null) == dir.name) {
+            setActiveStreaming(context, null)
+        }
+        if (prefs(context).getString(KEY_ACTIVE_BATCH, null) == dir.name) {
+            setActiveBatch(context, null)
+        }
+        return dir.deleteRecursively()
+    }
+
+    private fun <T> pickActive(installed: List<T>, activeId: String?, id: (T) -> String): T? {
+        if (installed.isEmpty()) return null
+        return installed.firstOrNull { id(it) == activeId } ?: installed.first()
+    }
+
+    private fun putString(context: Context, key: String, value: String?) {
+        prefs(context).edit().apply {
+            if (value == null) remove(key) else putString(key, value)
+        }.apply()
     }
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-    private const val DEFAULT_THREADS = 2
 }

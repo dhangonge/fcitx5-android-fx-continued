@@ -24,4 +24,11 @@
     <string name="installing">正在安装…</string>
     <string name="model_size">%1$s MB</string>
     <string name="threads">解码线程数：%1$d</string>
+    <string name="service_streaming">小企鹅语音 · 流式</string>
+    <string name="service_batch">小企鹅语音 · Whisper</string>
+    <string name="streaming_section">流式（边说边出字）</string>
+    <string name="batch_section">Whisper（说完再整句转写）</string>
+    <string name="active_streaming">流式模型：%1$s</string>
+    <string name="active_batch">Whisper 模型：%1$s</string>
+    <string name="imported_hint">导入的模型会按类型自动归入对应引擎。</string>
 </resources>

@@ -52,7 +52,26 @@
         <service
             android:name=".VoiceAsrService"
             android:exported="true"
-            android:label="@string/app_name"
+            android:label="@string/service_streaming"
+            android:permission="${mainApplicationId}.permission.PLUGIN">
+            <intent-filter>
+                <action android:name="${mainApplicationId}.plugin.VOICE_INPUT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="org.fcitx.fcitx5.android.fx.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.fx.debug.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.debug.plugin.VOICE_INPUT" />
+            </intent-filter>
+        </service>
+
+        <!-- Same action as the streaming provider: the IME lists every service
+             that answers it, so the user picks the engine in the voice input
+             setting and the two never need host-side changes. -->
+        <service
+            android:name=".VoiceAsrBatchService"
+            android:exported="true"
+            android:label="@string/service_batch"
             android:permission="${mainApplicationId}.permission.PLUGIN">
             <intent-filter>
                 <action android:name="${mainApplicationId}.plugin.VOICE_INPUT" />
