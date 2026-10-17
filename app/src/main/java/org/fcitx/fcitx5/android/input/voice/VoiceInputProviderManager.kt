@@ -118,26 +118,26 @@ object VoiceInputProviderManager {
         val ptsMs: Long,
     )
 
-    // Verbose tracing is debug-only. Timber still records important warnings
-    // in release, so user-reported issues remain debuggable via the file log.
-    // R8 folds away the call in release builds where BuildConfig.DEBUG is false.
+    // Logging is unconditional, including in release: user reports come from
+    // release APKs, and there is no file log tree to fall back on, so gating
+    // these behind BuildConfig.DEBUG made bind and model-load failures
+    // impossible to diagnose. All call sites are lifecycle/state transitions,
+    // not hot audio paths, so the cost is negligible. Recognized text is never
+    // logged, only its length.
     private fun logI(msg: String) {
-        if (BuildConfig.DEBUG) android.util.Log.i(TAG, msg)
+        android.util.Log.i(TAG, msg)
     }
 
     private fun logW(msg: String) {
-        if (BuildConfig.DEBUG) android.util.Log.w(TAG, msg)
+        android.util.Log.w(TAG, msg)
     }
 
     private fun logW(msg: String, e: Throwable) {
-        if (BuildConfig.DEBUG) android.util.Log.w(TAG, msg, e)
+        android.util.Log.w(TAG, msg, e)
     }
 
-    // Timber.i is verbose tracing of normal flow; gate it like logI so release
-    // builds don't pay the string-template + tree-iteration cost. Timber.w
-    // stays unconditional — release file logs need warnings for bug reports.
     private fun tlogI(msg: String) {
-        if (BuildConfig.DEBUG) Timber.i(msg)
+        Timber.i(msg)
     }
 
     fun isActive(): Boolean =
@@ -379,7 +379,7 @@ object VoiceInputProviderManager {
             override fun onPartialResult(text: String?) {
                 val t = text.orEmpty()
                 if (t.isNotBlank()) {
-                    logI("partial result len=${t.length}: $t")
+                    logI("partial result len=${t.length}")
                     service.lifecycleScope.launch {
                         service.setVoiceComposingText(t)
                         onPartialResult(t)
@@ -390,8 +390,8 @@ object VoiceInputProviderManager {
             override fun onSegmentFinal(text: String?) {
                 val t = text.orEmpty()
                 if (t.isNotBlank()) {
-                    logI("segment final len=${t.length}: $t")
-                    tlogI("Voice segment final: $t")
+                    logI("segment final len=${t.length}")
+                    tlogI("Voice segment final")
                     service.lifecycleScope.launch { service.commitText(t) }
                 } else {
                     logI("segment final blank")

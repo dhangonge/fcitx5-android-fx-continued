@@ -5,8 +5,6 @@
     <string name="description">為小企鵝輸入法提供離線語音輸入</string>
 
     <string name="settings_title">語音輸入</string>
-    <string name="active_model">目前模型：%1$s</string>
-    <string name="active_model_none">目前模型：無</string>
     <string name="no_model_hint">請在下方下載模型，或匯入從其他裝置匯出的壓縮檔（.tar.bz2 / .zip）。</string>
     <string name="installed_section">已安裝</string>
     <string name="download_section">可下載</string>
@@ -29,7 +27,9 @@
     <string name="streaming_section">串流（邊說邊出字）</string>
     <string name="batch_section">Whisper（說完再整句轉寫）</string>
     <string name="active_streaming">串流模型：%1$s</string>
+    <string name="active_streaming_none">串流模型：無</string>
     <string name="active_batch">Whisper 模型：%1$s</string>
+    <string name="active_batch_none">Whisper 模型：無</string>
     <string name="imported_hint">匯入的模型會按類型自動歸入對應引擎。</string>
     <string name="download_notification_denied">未授予通知權限——下載仍會繼續，只是不會在通知列顯示進度。</string>
 </resources>

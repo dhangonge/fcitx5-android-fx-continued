@@ -198,7 +198,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             if (state.activeStreaming != null) {
                 getString(R.string.active_streaming, state.activeStreaming)
             } else {
-                getString(R.string.active_model_none)
+                getString(R.string.active_streaming_none)
             },
             size = 15f,
             bottom = 2
@@ -207,7 +207,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             if (state.activeBatch != null) {
                 getString(R.string.active_batch, state.activeBatch)
             } else {
-                getString(R.string.active_model_none)
+                getString(R.string.active_batch_none)
             },
             size = 15f,
             bottom = 8

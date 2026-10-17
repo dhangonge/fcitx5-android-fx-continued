@@ -5,8 +5,6 @@
     <string name="description">Offline voice input for Fcitx5 for Android</string>
 
     <string name="settings_title">Voice input</string>
-    <string name="active_model">Active model: %1$s</string>
-    <string name="active_model_none">Active model: none</string>
     <string name="no_model_hint">Download a model below, or import an archive (.tar.bz2 / .zip) exported from another device.</string>
     <string name="installed_section">Installed</string>
     <string name="download_section">Download</string>
@@ -29,7 +27,9 @@
     <string name="streaming_section">Streaming (words appear while you speak)</string>
     <string name="batch_section">Whisper (transcribes after you stop)</string>
     <string name="active_streaming">Streaming model: %1$s</string>
+    <string name="active_streaming_none">Streaming model: none</string>
     <string name="active_batch">Whisper model: %1$s</string>
+    <string name="active_batch_none">Whisper model: none</string>
     <string name="imported_hint">Imports land in the matching engine automatically.</string>
     <string name="download_notification_denied">Notification permission denied — the download still runs, but its progress stays hidden in the status bar.</string>
 </resources>
