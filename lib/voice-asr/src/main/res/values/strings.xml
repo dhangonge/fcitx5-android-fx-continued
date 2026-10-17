@@ -5,7 +5,11 @@
     <string name="no_model_hint">Download a model below, or import an archive (.tar.bz2 / .zip) exported from another device.</string>
     <string name="installed_section">Installed</string>
     <string name="download_section">Download</string>
-    <string name="download">Download</string>
+    <string name="download_mirror">Download via China mirror · %1$s</string>
+    <string name="download_github">Download via GitHub · %1$s</string>
+    <string name="cancel_download">Cancel download</string>
+    <string name="download_succeeded">Installed %1$s</string>
+    <string name="mirror_hint">The mirror (hf-mirror.com) works without a VPN and fetches the model file by file; GitHub serves one archive. Either way the model runs fully offline afterwards.</string>
     <string name="downloading">Downloading… %1$s</string>
     <string name="use">Use</string>
     <string name="in_use">In use</string>

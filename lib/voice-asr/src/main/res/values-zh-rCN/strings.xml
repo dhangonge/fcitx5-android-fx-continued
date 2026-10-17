@@ -5,7 +5,11 @@
     <string name="no_model_hint">请在下方下载模型，或导入从其他设备导出的压缩包（.tar.bz2 / .zip）。</string>
     <string name="installed_section">已安装</string>
     <string name="download_section">可下载</string>
-    <string name="download">下载</string>
+    <string name="download_mirror">国内镜像下载 · %1$s</string>
+    <string name="download_github">GitHub 下载 · %1$s</string>
+    <string name="cancel_download">取消下载</string>
+    <string name="download_succeeded">已安装 %1$s</string>
+    <string name="mirror_hint">国内镜像走 hf-mirror.com，不用翻墙，按文件逐个下载；GitHub 是整包下载。装好之后识别全程离线。</string>
     <string name="downloading">正在下载… %1$s</string>
     <string name="use">使用</string>
     <string name="in_use">使用中</string>

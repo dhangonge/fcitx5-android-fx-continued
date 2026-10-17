@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.lib.voice_asr.R
 import org.fcitx.fcitx5.android.voice.engine.ModelCatalog
+import org.fcitx.fcitx5.android.voice.engine.ModelDownloader
 import org.fcitx.fcitx5.android.voice.engine.ModelInstaller
 import org.fcitx.fcitx5.android.voice.engine.ModelKind
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
@@ -153,6 +154,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         ticker = lifecycleScope.launch {
             while (isActive) {
                 updateProgress()
+                drainMirrorDownloads()
                 if (collectFinishedDownloads()) {
                     refreshAll()
                     installPendingArchives()
@@ -226,14 +228,16 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         )
 
         content.addHeader(getString(R.string.download_section))
+        content.addLabel(getString(R.string.mirror_hint), size = 12f, dim = true, bottom = 8)
         ModelCatalog.all().forEach { remote ->
             val alreadyInstalled = state.installed.any { it.id == remote.id }
-            val busy = state.downloads.containsKey(remote.id) ||
+            val busy = ModelDownloader.isRunning(remote.id) ||
+                state.downloads.containsKey(remote.id) ||
                 state.unpacking.any { it.startsWith(remote.id) } ||
                 isInstalling(remote.id)
             val column = verticalLayout {
                 add(textView {
-                    text = "${remote.label} · ${formatSize(remote.archiveBytes)}"
+                    text = remote.label
                     textSize = 14f
                 }, lParams(matchParent, wrapContent))
                 val progress = textView {
@@ -243,15 +247,34 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 }
                 progressViews[remote.id] = progress
                 add(progress, lParams(matchParent, wrapContent))
-                if (busy && state.downloads[remote.id] == null) {
-                    // Either queued for unpacking or being unpacked right now; the
+                if (busy && state.downloads[remote.id] == null &&
+                    !ModelDownloader.isRunning(remote.id)
+                ) {
+                    // Queued for unpacking or being unpacked right now; the
                     // download-progress text does not apply once the transfer is gone.
                     progress.text = getString(R.string.installing)
                     progress.visibility = View.VISIBLE
                 }
-                if (!alreadyInstalled && !busy) {
+                if (busy && state.downloads[remote.id] != null) {
+                    // A stalled transfer (no route to the release CDN, which is the
+                    // normal case behind a firewall) would otherwise keep the row
+                    // busy forever with no way back.
                     add(button {
-                        text = getString(R.string.download)
+                        text = getString(R.string.cancel_download)
+                        setOnClickListener { cancelDownload(remote) }
+                    }, lParams(wrapContent, wrapContent) { topMargin = dp(4) })
+                }
+                if (!alreadyInstalled && !busy) {
+                    if (remote.hasMirror) {
+                        add(button {
+                            text = getString(
+                                R.string.download_mirror, formatSize(remote.mirrorBytes)
+                            )
+                            setOnClickListener { startMirrorDownload(remote) }
+                        }, lParams(wrapContent, wrapContent) { topMargin = dp(4) })
+                    }
+                    add(button {
+                        text = getString(R.string.download_github, formatSize(remote.archiveBytes))
                         setOnClickListener { startDownload(remote) }
                     }, lParams(wrapContent, wrapContent) { topMargin = dp(4) })
                 }
@@ -306,6 +329,28 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * The mirror needs no notification permission and no download-manager row: it
+     * streams the weight files straight into the model directory.
+     */
+    private fun startMirrorDownload(remote: RemoteModel) {
+        ModelDownloader.start(this, remote)
+        refreshAll()
+    }
+
+    private fun drainMirrorDownloads() {
+        val results = ModelDownloader.drainFinished()
+        if (results.isEmpty()) return
+        results.forEach { snapshot ->
+            val error = snapshot.error
+            toast(
+                if (error == null) getString(R.string.download_succeeded, snapshot.modelId)
+                else "${getString(R.string.download_failed)}: $error"
+            )
+        }
+        refreshAll()
+    }
+
     private fun startDownload(remote: RemoteModel) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -324,8 +369,14 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             .onFailure { toast("${getString(R.string.download_failed)}: ${it.message}") }
     }
 
+    private fun cancelDownload(remote: RemoteModel) {
+        val downloadId = pending[remote.id] ?: return
+        runCatching { getSystemService(DownloadManager::class.java).remove(downloadId) }
+        ModelInstaller.forgetDownload(this, downloadId)
+        refreshAll()
+    }
+
     private fun updateProgress() {
-        if (pending.isEmpty()) return
         val manager = getSystemService(DownloadManager::class.java)
         pending.forEach { (modelId, downloadId) ->
             val view = progressViews[modelId] ?: return@forEach
@@ -343,10 +394,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                     when (status) {
                         DownloadManager.STATUS_FAILED -> getString(R.string.download_failed)
                         DownloadManager.STATUS_SUCCESSFUL -> getString(R.string.installing)
-                        else -> getString(
-                            R.string.downloading,
-                            if (total > 0) "${done * 100 / total}%" else formatSize(done)
-                        )
+                        else -> progressText(done, total)
                     }
                 }
             }.getOrNull()
@@ -355,7 +403,19 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 view.visibility = View.VISIBLE
             }
         }
+        // Mirror transfers win over a download-manager row for the same model; the
+        // two can never run at once anyway.
+        progressViews.forEach { (modelId, view) ->
+            val snapshot = ModelDownloader.snapshot(modelId)?.takeIf { it.running } ?: return@forEach
+            view.text = progressText(snapshot.done, snapshot.total)
+            view.visibility = View.VISIBLE
+        }
     }
+
+    private fun progressText(done: Long, total: Long): String = getString(
+        R.string.downloading,
+        if (total > 0) "${(done * 100 / total).coerceIn(0, 100)}%" else formatSize(done)
+    )
 
     /**
      * Drops transfers the download manager no longer runs.
@@ -399,12 +459,18 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                     ?: archive.name
             if (!markInstalling(modelId, archive.name)) return@forEach
             lifecycleScope.launch {
-                val installed = withContext(Dispatchers.IO) {
-                    runCatching {
-                        ModelInstaller.installArchive(this@VoiceAsrSettingsActivity, archive)
-                    }.getOrNull()
+                // Cleared in `finally`: a cancelled coroutine (the screen going away
+                // mid-unpack) must not leave the model permanently "installing".
+                var installed: String? = null
+                try {
+                    installed = withContext(Dispatchers.IO) {
+                        runCatching {
+                            ModelInstaller.installArchive(this@VoiceAsrSettingsActivity, archive)
+                        }.getOrNull()
+                    }
+                } finally {
+                    clearInstalling(modelId, archive.name)
                 }
-                clearInstalling(modelId, archive.name)
                 toast(
                     if (installed == null) getString(R.string.import_failed)
                     else getString(R.string.import_succeeded, installed)
