@@ -21,12 +21,18 @@ object Versions {
     // moves.
     const val baseVersionCode = 13
 
-    // Version name is `<upstream release>-<fork release counter>` (e.g. `0.1.3-1`); the
-    // build takes it from `git describe --tags --long` (ProjectExtensions.buildVersionName),
-    // so the release tag decides it and these constants are only the no-git fallback.
+    // Release version name is `<upstream release>-<codename>-<fork release counter>`, e.g.
+    // `0.1.3-Vega-1`. The build takes the real value from `git describe --tags --long`
+    // (ProjectExtensions.buildVersionName), so the release tag decides it and these
+    // constants are only the fallback for builds without git metadata.
+    //
+    // The codename is decorative (a short celestial-body name, ASCII, no digits); the
+    // counter is the ordering key and keeps increasing even when the codename changes,
+    // because the in-app update check compares numbers only.
     const val upstreamVersionName = "0.1.3"
+    const val releaseCodename = "Vega"
     const val forkVersionName = "1"
-    const val baseVersionName = "$upstreamVersionName-$forkVersionName"
+    const val baseVersionName = "$upstreamVersionName-$releaseCodename-$forkVersionName"
 
     val supportedABIs = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
     const val fallbackABI = "arm64-v8a"

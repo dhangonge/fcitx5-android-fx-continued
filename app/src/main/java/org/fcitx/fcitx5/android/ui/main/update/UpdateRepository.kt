@@ -209,9 +209,13 @@ object UpdateRepository {
     }
 
     private fun extractVersionNumbers(value: String): List<Int> {
-        // Only take the first numeric version segment (e.g. 0.1.2-349-gxxxx), ignore suffixes (e.g. arm64-v8a)
-        val versionPart = Regex("""(\d+\.\d+\.\d+(?:-\d+)?(?:-g[0-9a-fA-F]+)?)""").find(value)?.value
-            ?: value
+        // Only take the version segment (e.g. 0.1.3-Vega-1-0-gxxxx), ignore suffixes (e.g.
+        // arm64-v8a). The codename carries no digits, so it drops out of the list and the
+        // fork release counter lands right after the upstream X.Y.Z parts — that ordering
+        // is what makes 0.1.3-Vega-2 newer than 0.1.3-Vega-1.
+        val versionPart = Regex(
+            """(\d+\.\d+\.\d+(?:-[A-Za-z]\w*)?(?:-\d+)*(?:-g[0-9a-fA-F]+)?)"""
+        ).find(value)?.value ?: value
         return Regex("""\d+""").findAll(versionPart).map {
             it.value.toIntOrNull() ?: 0
         }.toList()
