@@ -1,0 +1,11 @@
+{
+    "uniqueId": "microsoft/onnxruntime",
+    "artifactVersion": "1.13.8 (statically linked into libsherpa-onnx-jni.so)",
+    "description": "Cross-platform, high performance ML inferencing and training accelerator",
+    "name": "microsoft/onnxruntime",
+    "website": "https://github.com/microsoft/onnxruntime",
+    "tag": "native",
+    "licenses": [
+        "MIT"
+    ]
+}

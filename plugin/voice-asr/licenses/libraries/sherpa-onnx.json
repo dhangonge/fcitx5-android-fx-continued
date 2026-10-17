@@ -1,0 +1,11 @@
+{
+    "uniqueId": "k2-fsa/sherpa-onnx",
+    "artifactVersion": "1.13.8",
+    "description": "Speech recognition, text-to-speech, VAD and diarization on ONNX Runtime, without Internet connection",
+    "name": "k2-fsa/sherpa-onnx",
+    "website": "https://github.com/k2-fsa/sherpa-onnx",
+    "tag": "native",
+    "licenses": [
+        "Apache-2.0"
+    ]
+}
