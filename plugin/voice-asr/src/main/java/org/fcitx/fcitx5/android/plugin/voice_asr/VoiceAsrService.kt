@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Parcel
 import android.util.Log
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
@@ -57,6 +58,11 @@ class VoiceAsrService : Service() {
     private var silenceMs = ENDPOINT_SILENCE_MS
 
     private val binder = object : IVoiceInputProvider.Stub() {
+
+        override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+            VoiceInputCallers.enforceAllowed(this@VoiceAsrService)
+            return super.onTransact(code, data, reply, flags)
+        }
 
         override fun isAvailable(): Boolean {
             // availability is about having a model on disk, not about it being

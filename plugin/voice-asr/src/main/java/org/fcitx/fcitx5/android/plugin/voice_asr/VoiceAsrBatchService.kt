@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Parcel
 import android.util.Log
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
@@ -50,6 +51,11 @@ class VoiceAsrBatchService : Service() {
     private var sampleRate = SAMPLE_RATE
 
     private val binder = object : IVoiceInputProvider.Stub() {
+
+        override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+            VoiceInputCallers.enforceAllowed(this@VoiceAsrBatchService)
+            return super.onTransact(code, data, reply, flags)
+        }
 
         override fun isAvailable(): Boolean {
             val available = runCatching { ModelStore.activeBatch(this@VoiceAsrBatchService) != null }

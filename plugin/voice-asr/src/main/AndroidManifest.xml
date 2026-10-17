@@ -54,16 +54,15 @@
         </receiver>
 
         <!--
-            `permission.PLUGIN` is declared by the main app with protectionLevel
-            "signature", so only an identically signed host can bind this service.
-            The fixed actions keep a release plugin usable with a debug host and
-            vice versa.
+            Exported so the IME can find it with queryIntentServices; the caller is
+            verified in VoiceInputCallers because an `android:permission` guard
+            would only match one host variant (see that file). The fixed actions
+            keep a release plugin usable with a debug host and vice versa.
         -->
         <service
             android:name=".VoiceAsrService"
             android:exported="true"
-            android:label="@string/service_streaming"
-            android:permission="${mainApplicationId}.permission.PLUGIN">
+            android:label="@string/service_streaming">
             <intent-filter>
                 <action android:name="${mainApplicationId}.plugin.VOICE_INPUT" />
             </intent-filter>
@@ -81,8 +80,7 @@
         <service
             android:name=".VoiceAsrBatchService"
             android:exported="true"
-            android:label="@string/service_batch"
-            android:permission="${mainApplicationId}.permission.PLUGIN">
+            android:label="@string/service_batch">
             <intent-filter>
                 <action android:name="${mainApplicationId}.plugin.VOICE_INPUT" />
             </intent-filter>
