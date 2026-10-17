@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Fcitx5 Voice Input</string>
+    <string name="app_name_debug">Penguin Voice Input Plugin (Debug)</string>
+    <string name="app_name_release">Penguin Voice Input Plugin</string>
+    <string name="description">Offline voice input for Fcitx5 for Android</string>
+
     <string name="scaffold_result">Voice input is wired up (no engine yet)</string>
 </resources>
