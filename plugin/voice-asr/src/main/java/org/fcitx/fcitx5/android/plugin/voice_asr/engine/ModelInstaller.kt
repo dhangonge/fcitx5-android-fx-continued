@@ -52,7 +52,7 @@ object ModelInstaller {
             .sortedBy { it.name }
 
     fun downloadDir(context: Context): File =
-        File(context.getExternalFilesDir(null), DOWNLOAD_DIR).apply { mkdirs() }
+        File(context.getExternalFilesDir(null) ?: context.filesDir, DOWNLOAD_DIR).apply { mkdirs() }
 
     fun archiveName(model: RemoteModel): String =
         model.id + (extensionOf(model.url) ?: ".tar.bz2")

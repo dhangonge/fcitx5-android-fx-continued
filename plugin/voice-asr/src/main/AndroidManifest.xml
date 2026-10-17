@@ -2,6 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
+        Model downloads go through DownloadManager, whose provider guards
+        content://downloads/my_downloads with android.permission.INTERNET; without
+        it enqueue() throws "Permission Denial: writing ... DownloadProvider uri
+        content://downloads/my_downloads". POST_NOTIFICATIONS only decides whether
+        the download progress notification is visible, never whether it runs.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
         The host IME binds this service, so the plugin has to be able to see the
         host package (Android 11+ package visibility). All main-app variants are
         listed because a plugin build against one variant can be installed next to

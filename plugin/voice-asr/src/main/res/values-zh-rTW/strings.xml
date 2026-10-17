@@ -31,4 +31,5 @@
     <string name="active_streaming">串流模型：%1$s</string>
     <string name="active_batch">Whisper 模型：%1$s</string>
     <string name="imported_hint">匯入的模型會按類型自動歸入對應引擎。</string>
+    <string name="download_notification_denied">未授予通知權限——下載仍會繼續，只是不會在通知列顯示進度。</string>
 </resources>

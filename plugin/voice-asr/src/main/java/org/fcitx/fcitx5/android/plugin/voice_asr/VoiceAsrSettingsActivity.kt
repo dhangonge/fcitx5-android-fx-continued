@@ -4,12 +4,15 @@
  */
 package org.fcitx.fcitx5.android.plugin.voice_asr
 
+import android.Manifest
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
@@ -61,6 +64,19 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
 
     private lateinit var content: LinearLayout
     private var ticker: Job? = null
+
+    /** Model waiting for the notification permission answer, then downloaded. */
+    private var pendingDownload: RemoteModel? = null
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val model = pendingDownload ?: return@registerForActivityResult
+            pendingDownload = null
+            // A refused notification only hides the progress notification; the
+            // transfer itself does not need the permission.
+            if (!granted) toast(getString(R.string.download_notification_denied))
+            enqueue(model)
+        }
 
     private val progressViews = mutableMapOf<String, TextView>()
     private var pending: Map<String, Long> = emptyMap()
@@ -279,6 +295,18 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
     }
 
     private fun startDownload(remote: RemoteModel) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingDownload = remote
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        enqueue(remote)
+    }
+
+    private fun enqueue(remote: RemoteModel) {
         runCatching { ModelInstaller.enqueueDownload(this, remote) }
             .onSuccess { refreshAll() }
             .onFailure { toast("${getString(R.string.download_failed)}: ${it.message}") }

@@ -31,4 +31,5 @@
     <string name="active_streaming">流式模型：%1$s</string>
     <string name="active_batch">Whisper 模型：%1$s</string>
     <string name="imported_hint">导入的模型会按类型自动归入对应引擎。</string>
+    <string name="download_notification_denied">未授予通知权限——下载仍会继续，只是不会在通知栏显示进度。</string>
 </resources>

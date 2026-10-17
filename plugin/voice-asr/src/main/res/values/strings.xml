@@ -31,4 +31,5 @@
     <string name="active_streaming">Streaming model: %1$s</string>
     <string name="active_batch">Whisper model: %1$s</string>
     <string name="imported_hint">Imports land in the matching engine automatically.</string>
+    <string name="download_notification_denied">Notification permission denied — the download still runs, but its progress stays hidden in the status bar.</string>
 </resources>
