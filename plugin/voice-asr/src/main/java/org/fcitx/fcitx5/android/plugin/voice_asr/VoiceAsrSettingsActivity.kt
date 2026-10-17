@@ -56,6 +56,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
 
     private val progressViews = mutableMapOf<String, TextView>()
     private var pending: Map<String, Long> = emptyMap()
+    private val installing = mutableSetOf<String>()
 
     private val importModel =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -81,6 +82,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 toast("${getString(R.string.download_failed)}: $it")
             }
             refreshAll()
+            installPendingArchives()
         }
     }
 
@@ -114,6 +116,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 delay(500)
             }
         }
+        installPendingArchives()
     }
 
     override fun onStop() {
@@ -240,6 +243,32 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             if (text != null) {
                 view.text = text
                 view.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * Unpacks archives that the download manager already finished. Runs here (and
+     * not in the broadcast receiver) because extraction easily outlives the few
+     * seconds a receiver is allowed to live.
+     */
+    private fun installPendingArchives() {
+        val archives = ModelInstaller.pendingArchives(this).filter { it.name !in installing }
+        if (archives.isEmpty()) return
+        archives.forEach { archive ->
+            installing.add(archive.name)
+            toast(getString(R.string.installing))
+            lifecycleScope.launch {
+                val installed = withContext(Dispatchers.IO) {
+                    runCatching { ModelInstaller.installArchive(this@VoiceAsrSettingsActivity, archive) }
+                        .getOrNull()
+                }
+                installing.remove(archive.name)
+                toast(
+                    if (installed == null) getString(R.string.import_failed)
+                    else getString(R.string.import_succeeded, installed)
+                )
+                refreshAll()
             }
         }
     }

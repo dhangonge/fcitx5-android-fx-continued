@@ -32,6 +32,17 @@ object ModelInstaller {
     private const val PREFS = "voice_asr_downloads"
     private const val DOWNLOAD_DIR = "downloads"
 
+    /** Finished downloads that still need unpacking. */
+    fun pendingArchives(context: Context): List<File> =
+        downloadDir(context).listFiles().orEmpty()
+            .filter { it.isFile && isArchive(it.name) }
+            .sortedBy { it.name }
+
+    private fun isArchive(name: String): Boolean =
+        name.endsWith(".tar.bz2", true) || name.endsWith(".tbz2", true) ||
+            name.endsWith(".tar.gz", true) || name.endsWith(".tgz", true) ||
+            name.endsWith(".zip", true) || name.endsWith(".tar", true)
+
     fun downloadDir(context: Context): File =
         File(context.getExternalFilesDir(null), DOWNLOAD_DIR).apply { mkdirs() }
 

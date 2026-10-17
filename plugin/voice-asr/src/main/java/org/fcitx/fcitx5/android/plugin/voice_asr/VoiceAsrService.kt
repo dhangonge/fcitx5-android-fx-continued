@@ -30,6 +30,7 @@ class VoiceAsrService : Service() {
         Thread(runnable, "voice-asr").apply { isDaemon = true }
     }
 
+    @Volatile
     private var engine: StreamingEngine? = null
     private var engineModelId: String? = null
     private var session: StreamingEngine.Session? = null
