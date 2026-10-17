@@ -24,7 +24,7 @@
             android:name=".VoiceAsrSettingsActivity"
             android:exported="true"
             android:label="@string/settings_title"
-            android:theme="@style/DeviceSettingsTheme">
+            android:theme="@style/VoiceAsrTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

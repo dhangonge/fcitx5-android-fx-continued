@@ -53,9 +53,10 @@ class StreamingEngine(model: StreamingModel, numThreads: Int = 1) : AutoCloseabl
 
         private val stream: OnlineStream = recognizer.createStream()
 
-        /** Feeds 16 kHz mono float samples and returns the current transcript. */
-        fun accept(samples: FloatArray): String {
-            stream.acceptWaveform(samples, StreamingModel.SAMPLE_RATE)
+        /** Feeds mono float samples and returns the current transcript. */
+        fun accept(samples: FloatArray, sampleRate: Int = StreamingModel.SAMPLE_RATE): String {
+            val rate = if (sampleRate > 0) sampleRate else StreamingModel.SAMPLE_RATE
+            stream.acceptWaveform(samples, rate)
             while (recognizer.isReady(stream)) recognizer.decode(stream)
             return recognizer.getResult(stream).text
         }

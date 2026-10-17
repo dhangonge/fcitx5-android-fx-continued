@@ -27,6 +27,10 @@ val sherpaDistDir = layout.buildDirectory.dir("sherpa-onnx")
 val fetchSherpaOnnx = tasks.register("fetchSherpaOnnx") {
     description = "Download and verify the prebuilt sherpa-onnx JNI libraries"
     group = "build"
+    // Bumping the pin (or pointing at a mirror) must invalidate the extract.
+    inputs.property("version", sherpaVersion)
+    inputs.property("sha256", sherpaArchiveSha256)
+    inputs.property("url", sherpaArchiveUrl)
     outputs.dir(sherpaDistDir)
     doLast {
         val downloadDir = layout.buildDirectory.dir("downloads").get().asFile
@@ -50,8 +54,17 @@ val fetchSherpaOnnx = tasks.register("fetchSherpaOnnx") {
             logger.lifecycle("Downloading $sherpaArchiveUrl")
             val tmp = downloadDir.resolve("$sherpaArchiveName.part")
             tmp.delete()
-            URI(sherpaArchiveUrl).toURL().openStream().use { input ->
-                tmp.outputStream().use { output -> input.copyTo(output) }
+            val connection = URI(sherpaArchiveUrl).toURL().openConnection()
+                .let { it as java.net.HttpURLConnection }
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 120_000
+            connection.setRequestProperty("User-Agent", "fcitx5-android-voice-asr-build")
+            try {
+                connection.inputStream.use { input ->
+                    tmp.outputStream().use { output -> input.copyTo(output) }
+                }
+            } finally {
+                connection.disconnect()
             }
             val actual = sha256(tmp)
             if (actual != sherpaArchiveSha256) {
@@ -63,14 +76,19 @@ val fetchSherpaOnnx = tasks.register("fetchSherpaOnnx") {
             tmp.renameTo(archive)
         }
 
+        // Extract beside the output and swap it in, so a failed run leaves the
+        // previous tree (and Gradle's snapshot of it) intact.
         val dist = sherpaDistDir.get().asFile
+        val staging = File(dist.parentFile, "${dist.name}.tmp")
+        staging.deleteRecursively()
+        staging.mkdirs()
+        providers.exec {
+            commandLine("tar", "xjf", archive.absolutePath, "-C", staging.absolutePath)
+        }.result.get()
+        require(staging.resolve("jniLibs").exists()) { "jniLibs not found in $sherpaArchiveName" }
         dist.deleteRecursively()
-        dist.mkdirs()
-        val exit = providers.exec {
-            commandLine("tar", "xjf", archive.absolutePath, "-C", dist.absolutePath)
-        }.result.get().exitValue
-        if (exit != 0) throw GradleException("Failed to extract $sherpaArchiveName")
-        require(dist.resolve("jniLibs").exists()) { "jniLibs not found in $sherpaArchiveName" }
+        if (!staging.renameTo(dist)) staging.copyRecursively(dist, overwrite = true)
+        staging.deleteRecursively()
     }
 }
 

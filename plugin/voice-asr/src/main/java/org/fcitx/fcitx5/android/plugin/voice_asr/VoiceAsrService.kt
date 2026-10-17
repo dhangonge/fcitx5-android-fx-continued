@@ -15,6 +15,8 @@ import org.fcitx.fcitx5.android.common.ipc.VoiceInputIpc
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelStore
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.StreamingEngine
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.sqrt
 
 /**
@@ -30,6 +32,16 @@ class VoiceAsrService : Service() {
         Thread(runnable, "voice-asr").apply { isDaemon = true }
     }
 
+    /** Audio blocks handed to the worker and not decoded yet. */
+    private val queuedBlocks = AtomicInteger(0)
+
+    @Volatile
+    private var destroyed = false
+
+    /** Set synchronously by cancel/stop so audio already queued is dropped. */
+    @Volatile
+    private var stopRequested = false
+
     @Volatile
     private var engine: StreamingEngine? = null
     private var engineModelId: String? = null
@@ -38,47 +50,101 @@ class VoiceAsrService : Service() {
     private var sessionActive = false
     private var lastPartial = ""
 
+    @Volatile
+    private var sampleRate = SAMPLE_RATE
+
+    @Volatile
+    private var silenceMs = ENDPOINT_SILENCE_MS
+
     private val binder = object : IVoiceInputProvider.Stub() {
 
-        override fun isAvailable(): Boolean = runCatching {
-            engine != null || ModelStore.active(this@VoiceAsrService) != null
-        }.getOrDefault(false)
+        override fun isAvailable(): Boolean {
+            // availability is about having a model on disk, not about it being
+            // loaded: a cold start still works, it is just slower to answer.
+            val available = runCatching { ModelStore.active(this@VoiceAsrService) != null }
+                .getOrDefault(false)
+            if (available) preloadEngine()
+            return available
+        }
 
         override fun getPreferredConfig(): Bundle = Bundle().apply {
-            putInt(VoiceInputIpc.ConfigKeys.SAMPLE_RATE, SAMPLE_RATE)
+            putInt(VoiceInputIpc.ConfigKeys.SAMPLE_RATE, sampleRate)
             putInt(VoiceInputIpc.ConfigKeys.BITS_PER_SAMPLE, BITS_PER_SAMPLE)
             putInt(VoiceInputIpc.ConfigKeys.CHANNELS, CHANNELS)
-            putLong(VoiceInputIpc.ConfigKeys.SILENCE_MS, SILENCE_MS)
+            putLong(VoiceInputIpc.ConfigKeys.SILENCE_MS, silenceMs)
         }
 
         override fun configure(params: Bundle) {
-            Log.i(TAG, "configure: ${params.keySet()}")
+            params.getInt(VoiceInputIpc.ConfigKeys.SAMPLE_RATE, SAMPLE_RATE)
+                .takeIf { it > 0 }?.let { sampleRate = it }
+            params.getLong(VoiceInputIpc.ConfigKeys.SILENCE_MS, ENDPOINT_SILENCE_MS)
+                .takeIf { it > 0 }?.let { silenceMs = it }
+            Log.i(TAG, "configure: rate=$sampleRate silence=$silenceMs keys=${params.keySet()}")
         }
 
-        override fun startSession(cb: IVoiceInputCallback) = worker.execute {
-            callback = cb
-            sessionActive = true
-            lastPartial = ""
-            startSessionOnWorker(cb)
+        override fun startSession(cb: IVoiceInputCallback) {
+            stopRequested = false
+            submit { startSessionOnWorker(cb) }
         }
 
         override fun feedAudio(pcm: ByteArray, offset: Int, len: Int, ptsMs: Long) {
+            if (offset < 0 || len < 0 || offset + len > pcm.size) {
+                submit {
+                    callback?.let {
+                        fail(
+                            it,
+                            VoiceInputIpc.ErrorCodes.INVALID_AUDIO,
+                            "Invalid audio range $offset+$len of ${pcm.size}"
+                        )
+                    }
+                }
+                return
+            }
+            if (len == 0 || stopRequested) return
+            // A slow decoder would otherwise grow the queue without bound and the
+            // transcript would trail the speaker by seconds. Dropping whole blocks
+            // keeps the recognizer near realtime.
+            if (queuedBlocks.get() >= MAX_QUEUED_BLOCKS) return
             val copy = pcm.copyOfRange(offset, offset + len)
-            worker.execute { feedOnWorker(copy) }
+            queuedBlocks.incrementAndGet()
+            submit { feedOnWorker(copy) }
         }
 
-        override fun endStream() = worker.execute { endStreamOnWorker() }
+        override fun endStream() = submit { endStreamOnWorker() }
 
-        override fun cancelSession() = worker.execute { finishOnWorker() }
+        override fun cancelSession() {
+            stopRequested = true
+            submit { finishOnWorker() }
+        }
 
-        override fun stopSession() = worker.execute { finishOnWorker() }
+        override fun stopSession() {
+            stopRequested = true
+            submit { finishOnWorker() }
+        }
+    }
+
+    private fun submit(block: () -> Unit) {
+        if (destroyed) return
+        runCatching { worker.execute(block) }
+            .onFailure { Log.w(TAG, "worker rejected task", it) }
+    }
+
+    /** Loads the model in the background so the next session answers instantly. */
+    private fun preloadEngine() {
+        if (engine != null) return
+        submit {
+            runCatching { ensureEngine() }.onFailure { Log.w(TAG, "preload failed", it) }
+        }
     }
 
     private fun startSessionOnWorker(cb: IVoiceInputCallback) {
-        if (session != null) {
+        if (sessionActive || session != null) {
             Log.w(TAG, "startSession while a session is live, dropping the old one")
-            closeSession()
+            finishOnWorker()
         }
+        callback = cb
+        sessionActive = true
+        lastPartial = ""
         try {
             val active = ensureEngine()
             if (active == null) {
@@ -113,14 +179,15 @@ class VoiceAsrService : Service() {
     }
 
     private fun feedOnWorker(pcm: ByteArray) {
-        val active = session ?: return
-        val cb = callback ?: return
-        if (!sessionActive) return
         try {
+            if (stopRequested) return
+            val active = session ?: return
+            val cb = callback ?: return
+            if (!sessionActive) return
             val samples = toFloatSamples(pcm)
             if (samples.isEmpty()) return
             cb.onVolumeLevel(rmsOf(samples))
-            val text = active.accept(samples)
+            val text = active.accept(samples, sampleRate)
             if (text.isNotBlank() && text != lastPartial) {
                 lastPartial = text
                 cb.onPartialResult(text)
@@ -132,7 +199,9 @@ class VoiceAsrService : Service() {
             }
         } catch (e: Throwable) {
             Log.e(TAG, "Decode failed", e)
-            fail(cb, VoiceInputIpc.ErrorCodes.DECODE_FAILED, e.message ?: "Decode failed")
+            callback?.let { fail(it, VoiceInputIpc.ErrorCodes.DECODE_FAILED, e.message ?: "Decode failed") }
+        } finally {
+            queuedBlocks.updateAndGet { if (it > 0) it - 1 else 0 }
         }
     }
 
@@ -159,17 +228,21 @@ class VoiceAsrService : Service() {
         val wasActive = sessionActive
         sessionActive = false
         lastPartial = ""
+        queuedBlocks.set(0)
         closeSession()
         callback = null
         if (wasActive) cb?.onSessionEnded()
     }
 
     private fun fail(cb: IVoiceInputCallback, code: Int, message: String) {
+        val wasActive = sessionActive
         sessionActive = false
         lastPartial = ""
+        queuedBlocks.set(0)
         closeSession()
         callback = null
-        cb.onError(code, message)
+        runCatching { cb.onError(code, message) }
+        if (wasActive) runCatching { cb.onSessionEnded() }
     }
 
     private fun closeSession() {
@@ -206,9 +279,12 @@ class VoiceAsrService : Service() {
     }
 
     override fun onDestroy() {
-        worker.execute { finishOnWorker() }
-        worker.execute { closeEngine() }
+        stopRequested = true
+        submit { finishOnWorker() }
+        submit { closeEngine() }
+        destroyed = true
         worker.shutdown()
+        runCatching { worker.awaitTermination(2, TimeUnit.SECONDS) }
         super.onDestroy()
     }
 
@@ -217,6 +293,11 @@ class VoiceAsrService : Service() {
         const val SAMPLE_RATE = 16000
         const val BITS_PER_SAMPLE = 16
         const val CHANNELS = 1
-        const val SILENCE_MS = 3000L
+
+        /** Matches the second endpoint rule of [StreamingEngine] (1.4 s of silence). */
+        const val ENDPOINT_SILENCE_MS = 1400L
+
+        /** 100 ms per block from the IME, so this caps the backlog at two seconds. */
+        const val MAX_QUEUED_BLOCKS = 20
     }
 }

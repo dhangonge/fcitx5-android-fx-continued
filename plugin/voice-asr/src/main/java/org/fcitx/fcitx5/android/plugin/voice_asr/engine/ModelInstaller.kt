@@ -6,9 +6,13 @@ package org.fcitx.fcitx5.android.plugin.voice_asr.engine
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -20,7 +24,9 @@ import java.util.zip.ZipInputStream
  *
  * Archives are unpacked with the model directory stripped of its single
  * top-level folder, so a directory named after the release asset becomes the
- * model id used everywhere else.
+ * model id used everywhere else. Unpacking runs on a background thread and the
+ * archive is consumed either way: it either becomes a model or reports why it
+ * could not.
  */
 object ModelInstaller {
 
@@ -29,24 +35,27 @@ object ModelInstaller {
     const val EXTRA_MODEL_ID = "modelId"
     const val EXTRA_ERROR = "error"
 
+    private const val TAG = "FcitxVoiceAsr"
     private const val PREFS = "voice_asr_downloads"
     private const val DOWNLOAD_DIR = "downloads"
+
+    /** DownloadManager.STATUS_PAUSED, which only exists from API 24. */
+    private const val STATUS_PAUSED = 4
+
+    private val ARCHIVE_EXTENSIONS =
+        listOf(".tar.bz2", ".tbz2", ".tar.gz", ".tgz", ".zip", ".tar")
 
     /** Finished downloads that still need unpacking. */
     fun pendingArchives(context: Context): List<File> =
         downloadDir(context).listFiles().orEmpty()
-            .filter { it.isFile && isArchive(it.name) }
+            .filter { it.isFile && it.length() > 0 && extensionOf(it.name) != null }
             .sortedBy { it.name }
-
-    private fun isArchive(name: String): Boolean =
-        name.endsWith(".tar.bz2", true) || name.endsWith(".tbz2", true) ||
-            name.endsWith(".tar.gz", true) || name.endsWith(".tgz", true) ||
-            name.endsWith(".zip", true) || name.endsWith(".tar", true)
 
     fun downloadDir(context: Context): File =
         File(context.getExternalFilesDir(null), DOWNLOAD_DIR).apply { mkdirs() }
 
-    fun archiveName(model: RemoteModel): String = "${model.id}.tar.bz2"
+    fun archiveName(model: RemoteModel): String =
+        model.id + (extensionOf(model.url) ?: ".tar.bz2")
 
     /**
      * Hands the transfer to the system download manager so it survives the
@@ -55,7 +64,11 @@ object ModelInstaller {
     fun enqueueDownload(context: Context, model: RemoteModel): Long {
         val request = DownloadManager.Request(Uri.parse(model.url))
             .setTitle(model.label)
-            .setDescription(context.getString(org.fcitx.fcitx5.android.plugin.voice_asr.R.string.download_notification_desc))
+            .setDescription(
+                context.getString(
+                    org.fcitx.fcitx5.android.plugin.voice_asr.R.string.download_notification_desc
+                )
+            )
             .setDestinationInExternalFilesDir(context, null, "$DOWNLOAD_DIR/${archiveName(model)}")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         val id = context.getSystemService(DownloadManager::class.java).enqueue(request)
@@ -66,12 +79,39 @@ object ModelInstaller {
     fun pendingModelId(context: Context, downloadId: Long): String? =
         downloadPrefs(context).getString(downloadId.toString(), null)
 
-    /** modelId -> downloadId for transfers that are still running. */
-    fun pendingDownloads(context: Context): Map<String, Long> =
-        downloadPrefs(context).all.mapNotNull { (key, value) ->
+    /**
+     * modelId -> downloadId for transfers that are still running.
+     *
+     * Rows are reconciled against the download manager on every read: a transfer
+     * that was deleted from the system UI or whose process died would otherwise
+     * stay "in flight" forever, hiding the download button.
+     */
+    fun pendingDownloads(context: Context): Map<String, Long> {
+        val prefs = downloadPrefs(context)
+        val stored = prefs.all.mapNotNull { (key, value) ->
             val downloadId = key.toLongOrNull() ?: return@mapNotNull null
             (value as? String)?.let { it to downloadId }
-        }.toMap()
+        }
+        if (stored.isEmpty()) return emptyMap()
+        val manager = context.getSystemService(DownloadManager::class.java)
+        val live = mutableMapOf<String, Long>()
+        val stale = mutableListOf<String>()
+        stored.forEach { (modelId, downloadId) ->
+            val status = runCatching {
+                manager.query(DownloadManager.Query().setFilterById(downloadId)).use { cursor ->
+                    if (!cursor.moveToFirst()) -1
+                    else cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                }
+            }.getOrDefault(-1)
+            val running = status == DownloadManager.STATUS_PENDING ||
+                status == DownloadManager.STATUS_RUNNING || status == STATUS_PAUSED
+            if (running) live[modelId] = downloadId else stale += downloadId.toString()
+        }
+        if (stale.isNotEmpty()) {
+            prefs.edit().apply { stale.forEach { remove(it) } }.apply()
+        }
+        return live
+    }
 
     fun forgetDownload(context: Context, downloadId: Long) {
         downloadPrefs(context).edit().remove(downloadId.toString()).apply()
@@ -79,55 +119,58 @@ object ModelInstaller {
 
     /**
      * Unpacks [archive] into the models directory. Returns the installed model id
-     * on success, or null when the archive does not contain a usable model.
+     * on success, or null when the archive does not hold a usable model.
      */
     fun installArchive(context: Context, archive: File): String? {
-        val name = archive.name
         val destRoot = ModelStore.modelsDir(context).apply { mkdirs() }
         val staging = File(destRoot, ".incoming-${System.currentTimeMillis()}").apply {
             deleteRecursively()
             mkdirs()
         }
         try {
-            val open: (InputStream) -> InputStream = { input ->
-                when {
-                    name.endsWith(".tar.bz2", true) || name.endsWith(".tbz2", true) ->
-                        BZip2CompressorInputStream(input, true)
-                    else -> input
-                }
-            }
-            archive.inputStream().use { raw ->
-                open(raw).use { decompressed ->
-                    if (name.endsWith(".zip", true)) {
-                        unzip(decompressed, staging)
-                    } else {
-                        untar(decompressed, staging)
-                    }
-                }
-            }
-            // A single top-level folder is the model itself; flatten it.
-            val top = staging.listFiles().orEmpty()
-            val modelDir = if (top.size == 1 && top[0].isDirectory) {
-                val target = File(destRoot, top[0].name)
-                target.deleteRecursively()
-                if (!top[0].renameTo(target)) {
-                    top[0].copyRecursively(target, overwrite = true)
-                }
-                target
+            unpack(archive, staging)
+            val top = staging.listFiles().orEmpty().filterNot { it.name.startsWith(".") }
+            val source = if (top.size == 1 && top[0].isDirectory) top[0] else staging
+            val name = if (source === staging) {
+                archive.name.substringBefore(".tar").substringBefore(".zip")
             } else {
-                val target = File(destRoot, name.substringBefore(".tar").substringBefore(".zip"))
-                target.deleteRecursively()
-                if (!staging.renameTo(target)) staging.copyRecursively(target, overwrite = true)
-                target
+                source.name
             }
-            val model = StreamingModel.fromDirectory(modelDir)
+            // Validate before touching anything already installed under that name.
+            val model = StreamingModel.fromDirectory(source)
             if (model == null) {
-                modelDir.deleteRecursively()
+                Log.w(TAG, "${archive.name} contains no usable model")
+                notifyError(context, "Archive contains no usable model")
                 return null
             }
-            return model.id
+            val target = File(destRoot, name)
+            target.deleteRecursively()
+            val moved = if (source === staging) {
+                staging.renameTo(target) || staging.copyRecursively(target, overwrite = true)
+            } else {
+                source.renameTo(target) || source.copyRecursively(target, overwrite = true)
+            }
+            if (!moved) {
+                target.deleteRecursively()
+                notifyError(context, "Could not move model into place")
+                return null
+            }
+            val verified = StreamingModel.fromDirectory(target)
+            if (verified == null) {
+                target.deleteRecursively()
+                notifyError(context, "Unpacked model is incomplete")
+                return null
+            }
+            return verified.id
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to install ${archive.name}", e)
+            notifyError(context, e.message ?: "Extraction failed")
+            return null
         } finally {
             staging.deleteRecursively()
+            // Neither a corrupt archive nor one without a usable model gets better
+            // on a retry, so it is dropped; the error broadcast tells the user why,
+            // and the download row offers a fresh attempt.
             archive.delete()
         }
     }
@@ -139,6 +182,22 @@ object ModelInstaller {
             temp.outputStream().use { output -> input.copyTo(output) }
         } ?: return null
         return installArchive(context, temp)
+    }
+
+    private fun unpack(archive: File, dest: File) {
+        val name = archive.name.lowercase()
+        val isZip = name.endsWith(".zip")
+        val known = isZip || ARCHIVE_EXTENSIONS.any { name.endsWith(it) }
+        require(known) { "Unsupported archive: ${archive.name}" }
+        BufferedInputStream(archive.inputStream()).use { raw ->
+            val decompressed: InputStream = when {
+                name.endsWith(".tar.bz2") || name.endsWith(".tbz2") ->
+                    BZip2CompressorInputStream(raw, true)
+                name.endsWith(".tar.gz") || name.endsWith(".tgz") -> GzipCompressorInputStream(raw)
+                else -> raw
+            }
+            if (isZip) unzip(decompressed, dest) else untar(decompressed, dest)
+        }
     }
 
     private fun untar(input: InputStream, dest: File) {
@@ -175,8 +234,19 @@ object ModelInstaller {
     private fun safeTarget(dest: File, entryName: String): File? {
         val clean = entryName.replace('\\', '/').trimStart('/')
         if (clean.isEmpty() || clean.split('/').any { it == ".." }) return null
-        if (entryName.endsWith("/__MACOSX/") || entryName.contains("__MACOSX/")) return null
+        if (entryName.contains("__MACOSX/")) return null
         return File(dest, clean)
+    }
+
+    private fun extensionOf(nameOrUrl: String): String? =
+        ARCHIVE_EXTENSIONS.firstOrNull { nameOrUrl.endsWith(it, ignoreCase = true) }
+
+    private fun notifyError(context: Context, message: String) {
+        context.sendBroadcast(
+            Intent(ACTION_MODEL_STATE_CHANGED)
+                .setPackage(context.packageName)
+                .putExtra(EXTRA_ERROR, message)
+        )
     }
 
     private fun downloadPrefs(context: Context) =

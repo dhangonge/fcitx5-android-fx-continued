@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- AppCompatActivity requires an AppCompat theme; plugin-base only ships a platform one. -->
+    <style name="VoiceAsrTheme" parent="Theme.AppCompat.DayNight.DarkActionBar" />
+</resources>

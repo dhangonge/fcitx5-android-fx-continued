@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelCatalog
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelInstaller
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelStore
 import org.fcitx.fcitx5.android.plugin.voice_asr.engine.RemoteModel
+import org.fcitx.fcitx5.android.plugin.voice_asr.engine.StreamingModel
 import splitties.dimensions.dp
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.button
@@ -44,10 +45,15 @@ import splitties.views.dsl.core.textView
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.dsl.core.wrapContent
 import splitties.views.dsl.core.wrapInScrollView
+import java.util.Locale
 
 /**
  * Install, pick and remove offline ASR models. Every row is rebuilt on state
  * changes; the only thing that updates in place is the download progress line.
+ *
+ * Unpacking happens here rather than in [ModelDownloadReceiver]: a 100 MB bzip2
+ * archive outlives the few seconds a receiver gets. A download that finishes
+ * while this screen is closed is therefore unpacked the next time it opens.
  */
 class VoiceAsrSettingsActivity : AppCompatActivity() {
 
@@ -56,17 +62,24 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
 
     private val progressViews = mutableMapOf<String, TextView>()
     private var pending: Map<String, Long> = emptyMap()
-    private val installing = mutableSetOf<String>()
+
+    private data class InstallerState(
+        val installed: List<StreamingModel>,
+        val active: StreamingModel?,
+        val downloads: Map<String, Long>,
+        val unpacking: Set<String>,
+    )
 
     private val importModel =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null) return@registerForActivityResult
             val name = queryDisplayName(uri)
-            toast(getString(R.string.downloading, name ?: uri.lastPathSegment ?: ""))
             lifecycleScope.launch {
+                toast(getString(R.string.installing))
                 val installed = withContext(Dispatchers.IO) {
-                    runCatching { ModelInstaller.importFromUri(this@VoiceAsrSettingsActivity, uri, name) }
-                        .getOrNull()
+                    runCatching {
+                        ModelInstaller.importFromUri(this@VoiceAsrSettingsActivity, uri, name)
+                    }.getOrNull()
                 }
                 toast(
                     if (installed == null) getString(R.string.import_failed)
@@ -127,29 +140,42 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshAll() {
-        pending = ModelInstaller.pendingDownloads(this)
+        lifecycleScope.launch {
+            val state = withContext(Dispatchers.IO) {
+                InstallerState(
+                    installed = ModelStore.available(this@VoiceAsrSettingsActivity),
+                    active = ModelStore.active(this@VoiceAsrSettingsActivity),
+                    downloads = ModelInstaller.pendingDownloads(this@VoiceAsrSettingsActivity),
+                    unpacking = ModelInstaller.pendingArchives(this@VoiceAsrSettingsActivity)
+                        .map { it.name }
+                        .toSet(),
+                )
+            }
+            render(state)
+        }
+    }
+
+    private fun render(state: InstallerState) {
+        pending = state.downloads
         progressViews.clear()
         content.removeAllViews()
 
-        val installed = ModelStore.available(this)
-        val active = ModelStore.active(this)
-
+        val active = state.active
         content.addLabel(
             if (active != null) getString(R.string.active_model, active.id)
             else getString(R.string.active_model_none),
             size = 16f,
-            top = 0,
             bottom = 4
         )
-        if (installed.isEmpty()) {
+        if (state.installed.isEmpty()) {
             content.addLabel(getString(R.string.no_model_hint), size = 14f, dim = true, bottom = 8)
         }
 
         content.addHeader(getString(R.string.installed_section))
-        if (installed.isEmpty()) {
+        if (state.installed.isEmpty()) {
             content.addLabel("—", size = 14f, dim = true, bottom = 8)
         }
-        installed.forEach { model ->
+        state.installed.forEach { model ->
             val row = horizontalLayout {
                 add(textView {
                     text = model.id
@@ -173,8 +199,10 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
 
         content.addHeader(getString(R.string.download_section))
         ModelCatalog.streaming.forEach { remote ->
-            val alreadyInstalled = installed.any { it.id == remote.id }
-            val inFlight = pending.containsKey(remote.id)
+            val alreadyInstalled = state.installed.any { it.id == remote.id }
+            val busy = state.downloads.containsKey(remote.id) ||
+                state.unpacking.any { it.startsWith(remote.id) } ||
+                isInstalling(remote.id)
             val column = verticalLayout {
                 add(textView {
                     text = "${remote.label} · ${formatSize(remote.archiveBytes)}"
@@ -187,7 +215,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 }
                 progressViews[remote.id] = progress
                 add(progress, lParams(matchParent, wrapContent))
-                if (!alreadyInstalled && !inFlight) {
+                if (!alreadyInstalled && !busy) {
                     add(button {
                         text = getString(R.string.download)
                         setOnClickListener { startDownload(remote) }
@@ -207,10 +235,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
 
     private fun startDownload(remote: RemoteModel) {
         runCatching { ModelInstaller.enqueueDownload(this, remote) }
-            .onSuccess {
-                pending = ModelInstaller.pendingDownloads(this)
-                refreshAll()
-            }
+            .onSuccess { refreshAll() }
             .onFailure { toast("${getString(R.string.download_failed)}: ${it.message}") }
     }
 
@@ -253,17 +278,17 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
      * seconds a receiver is allowed to live.
      */
     private fun installPendingArchives() {
-        val archives = ModelInstaller.pendingArchives(this).filter { it.name !in installing }
-        if (archives.isEmpty()) return
-        archives.forEach { archive ->
-            installing.add(archive.name)
-            toast(getString(R.string.installing))
+        ModelInstaller.pendingArchives(this).forEach { archive ->
+            val modelId = ModelCatalog.streaming.firstOrNull { archive.name.startsWith(it.id) }?.id
+                ?: archive.name
+            if (!markInstalling(modelId, archive.name)) return@forEach
             lifecycleScope.launch {
                 val installed = withContext(Dispatchers.IO) {
-                    runCatching { ModelInstaller.installArchive(this@VoiceAsrSettingsActivity, archive) }
-                        .getOrNull()
+                    runCatching {
+                        ModelInstaller.installArchive(this@VoiceAsrSettingsActivity, archive)
+                    }.getOrNull()
                 }
-                installing.remove(archive.name)
+                clearInstalling(modelId, archive.name)
                 toast(
                     if (installed == null) getString(R.string.import_failed)
                     else getString(R.string.import_succeeded, installed)
@@ -278,10 +303,14 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             .setMessage(getString(R.string.delete_confirm_message, modelId))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.delete) { _, _ ->
-                ModelStore.available(this).firstOrNull { it.id == modelId }?.let {
-                    ModelStore.delete(this, it)
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        ModelStore.available(this@VoiceAsrSettingsActivity)
+                            .firstOrNull { it.id == modelId }
+                            ?.let { ModelStore.delete(this@VoiceAsrSettingsActivity, it) }
+                    }
+                    refreshAll()
                 }
-                refreshAll()
             }
             .show()
     }
@@ -295,7 +324,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
     }.getOrNull()
 
     private fun formatSize(bytes: Long): String =
-        getString(R.string.model_size, String.format("%.1f", bytes / 1024.0 / 1024.0))
+        getString(R.string.model_size, String.format(Locale.ROOT, "%.1f", bytes / 1024.0 / 1024.0))
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
@@ -320,5 +349,28 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
             topMargin = dp(top)
             bottomMargin = dp(bottom)
         })
+    }
+
+    private companion object {
+        /**
+         * Archive names with an unpacking run in flight. Static so a rotation does
+         * not start a second extraction of the same 100 MB file.
+         */
+        private val installing = mutableSetOf<Pair<String, String>>()
+
+        private fun isInstalling(modelId: String): Boolean = synchronized(installing) {
+            installing.any { it.first == modelId }
+        }
+
+        private fun markInstalling(modelId: String, archive: String): Boolean =
+            synchronized(installing) {
+                if (installing.any { it.second == archive }) return false
+                installing.add(modelId to archive)
+                true
+            }
+
+        private fun clearInstalling(modelId: String, archive: String) {
+            synchronized(installing) { installing.remove(modelId to archive) }
+        }
     }
 }
