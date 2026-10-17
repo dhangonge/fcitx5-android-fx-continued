@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fcitx5 Voice Input</string>
+    <string name="scaffold_result">Voice input is wired up (no engine yet)</string>
+</resources>

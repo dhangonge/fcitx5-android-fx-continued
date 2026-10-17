@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The host IME binds this service, so the plugin has to be able to see the
+        host package (Android 11+ package visibility). All main-app variants are
+        listed because a plugin build against one variant can be installed next to
+        another variant of the host.
+    -->
+    <queries>
+        <package android:name="org.fcitx.fcitx5.android" />
+        <package android:name="org.fcitx.fcitx5.android.debug" />
+        <package android:name="org.fcitx.fcitx5.android.fx" />
+        <package android:name="org.fcitx.fcitx5.android.fx.debug" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true">
+
+        <!--
+            `permission.PLUGIN` is declared by the main app with protectionLevel
+            "signature", so only an identically signed host can bind this service.
+            The fixed actions keep a release plugin usable with a debug host and
+            vice versa.
+        -->
+        <service
+            android:name=".VoiceAsrService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="${mainApplicationId}.permission.PLUGIN">
+            <intent-filter>
+                <action android:name="${mainApplicationId}.plugin.VOICE_INPUT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="org.fcitx.fcitx5.android.fx.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.fx.debug.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.plugin.VOICE_INPUT" />
+                <action android:name="org.fcitx.fcitx5.android.debug.plugin.VOICE_INPUT" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
