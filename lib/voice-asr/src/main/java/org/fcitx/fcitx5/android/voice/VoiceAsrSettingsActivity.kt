@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
  */
-package org.fcitx.fcitx5.android.plugin.voice_asr
+package org.fcitx.fcitx5.android.voice
 
 import android.Manifest
 import android.app.DownloadManager
@@ -32,11 +32,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelCatalog
-import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelInstaller
-import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelKind
-import org.fcitx.fcitx5.android.plugin.voice_asr.engine.ModelStore
-import org.fcitx.fcitx5.android.plugin.voice_asr.engine.RemoteModel
+import org.fcitx.fcitx5.android.lib.voice_asr.R
+import org.fcitx.fcitx5.android.voice.engine.ModelCatalog
+import org.fcitx.fcitx5.android.voice.engine.ModelInstaller
+import org.fcitx.fcitx5.android.voice.engine.ModelKind
+import org.fcitx.fcitx5.android.voice.engine.ModelStore
+import org.fcitx.fcitx5.android.voice.engine.RemoteModel
 import splitties.dimensions.dp
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.button
@@ -290,7 +291,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                     }
                 }, lParams(wrapContent, wrapContent) { startMargin = dp(8) })
                 add(button {
-                    text = getString(R.string.delete)
+                    text = getString(R.string.voice_model_delete)
                     setOnClickListener { confirmDelete(model) }
                 }, lParams(wrapContent, wrapContent) { startMargin = dp(4) })
             }
@@ -417,7 +418,7 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setMessage(getString(R.string.delete_confirm_message, model.id))
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.delete) { _, _ ->
+            .setPositiveButton(R.string.voice_model_delete) { _, _ ->
                 lifecycleScope.launch {
                     withContext(Dispatchers.IO) {
                         ModelStore.delete(this@VoiceAsrSettingsActivity, model.dir)

@@ -856,6 +856,8 @@
     <string name="share_receive_archive_action_import_file">Import as files</string>
     <string name="share_receive_archive_extracted">Extracted %1$d file(s) to %2$s.</string>
     <string name="preferred_voice_input">Preferred voice input</string>
+    <string name="voice_model_manage_title">Voice models</string>
+    <string name="voice_model_manage_summary">Download or import offline voice models</string>
     <string name="background_blur_radius">Background Blur Radius</string>
     <string name="no_blur">No Blur</string>
     <string name="edit_text_playground">EditText Playground</string>

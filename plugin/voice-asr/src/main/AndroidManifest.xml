@@ -31,7 +31,7 @@
         android:supportsRtl="true">
 
         <activity
-            android:name=".VoiceAsrSettingsActivity"
+            android:name="org.fcitx.fcitx5.android.voice.VoiceAsrSettingsActivity"
             android:exported="true"
             android:label="@string/settings_title"
             android:theme="@style/VoiceAsrTheme">

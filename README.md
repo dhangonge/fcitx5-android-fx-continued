@@ -25,8 +25,10 @@ fcitx5-android/fcitx5-android   原版（上游官方）
 - 自定义图标主题（PNG / SVG / XML drawable / ZIP / 二维码）与自定义字体（`fontset.json`），
   工具栏与 Kawaii Bar 按钮图标可换
 - Macro 宏按键，支持图层切换与分方向行为
-- 语音输入：ASR AIDL 桥接（`IVoiceInputProvider` / `IVoiceInputCallback`），
-  IME 侧录音、插件侧识别，详见 [ASR_VOICE_INPUT_AIDL_INTEGRATION.md](ASR_VOICE_INPUT_AIDL_INTEGRATION.md)
+- 语音输入：内置离线识别引擎（sherpa-onnx），流式 zipformer 与 Whisper 整句两种模式，
+  在输入法进程内直接跑，不需要另装插件；模型在设置里下载或导入，见下文「语音输入」
+- 仍然保留 ASR AIDL 桥接（`IVoiceInputProvider` / `IVoiceInputCallback`），第三方插件 APK
+  可以把识别放在自己的进程里，详见 [ASR_VOICE_INPUT_AIDL_INTEGRATION.md](ASR_VOICE_INPUT_AIDL_INTEGRATION.md)
 - 额外汇总插件：`pinyin-lm`、`text-editor`（正则、Tab 视图）、`table-data`
 - Kawaii Bar / 浮动模式、数字键盘布局覆盖、BACK 层切换
 
@@ -82,6 +84,23 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk CMAKE_BUILD_PARALLEL_LEVEL=2 \
   -Pkotlin.daemon.jvmargs=-Xmx1024m :app:assembleDebug
 ```
 
+## 语音输入
+
+识别引擎已经内置在主程序里，装完就能用，**不需要额外装插件 APK**：
+
+1. 设置 → 虚拟键盘 → 工具栏与候选栏 → 打开「显示语音输入按钮」
+2. 同一个页面点「首选语音输入」，选「小企鹅语音（内置） · 流式」（边说边出字）
+   或「小企鹅语音（内置） · Whisper」（说完再整句转写）
+3. 没有模型时先装模型：同一个页面往下滚到「语音模型」，下载或从文件导入。
+   中文普通话轻量版 70 MB、2025 更准版 127 MB、英文 20M 版 122 MB；Whisper 多语言
+   tiny 111 MB / base 198 MB。解压后占用比下载包大不少，手机存储吃紧时先选轻量版。
+4. 键盘弹起后点工具栏上的话筒即可开始／停止录音，识别结果直接上屏。
+
+模型可以并存，随时切换，也能删掉。识别全程离线，不联网、不上传录音。
+
+`plugin/voice-asr` 那个插件 APK 仍然保留：它和内置引擎是同一套代码，装与不装都能用内置识别，
+插件形态主要留给需要把识别放在独立进程的场合。
+
 ## 状态
 
 已经有可安装的预编译包：见
@@ -89,7 +108,8 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk CMAKE_BUILD_PARALLEL_LEVEL=2 \
 当前只构建 `arm64-v8a`（主流 Android 手机都是这个 ABI），APK 用本仓库的发布密钥签名，
 主程序与插件同一签名，可以直接互相安装。
 
-源码构建同样验证可用：`:app:assembleDebug` 可产出 34 MB 的 `arm64-v8a` APK。
+源码构建同样验证可用：`:app:assembleDebug` 可产出 46 MB 的 `arm64-v8a` APK（含内置语音引擎的
+原生库）。
 
 ## 反馈
 

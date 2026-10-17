@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="settings_title">语音输入</string>
+    <string name="no_model_hint">请在下方下载模型，或导入从其他设备导出的压缩包（.tar.bz2 / .zip）。</string>
+    <string name="installed_section">已安装</string>
+    <string name="download_section">可下载</string>
+    <string name="download">下载</string>
+    <string name="downloading">正在下载… %1$s</string>
+    <string name="use">使用</string>
+    <string name="in_use">使用中</string>
+    <string name="voice_model_delete">删除</string>
+    <string name="delete_confirm_message">删除 %1$s？磁盘上的文件会被移除。</string>
+    <string name="import_model">从文件导入</string>
+    <string name="import_failed">该文件里没有可用的模型</string>
+    <string name="import_succeeded">已导入 %1$s</string>
+    <string name="download_failed">下载失败</string>
+    <string name="download_notification_desc">语音模型下载</string>
+    <string name="installing">正在安装…</string>
+    <string name="model_size">%1$s MB</string>
+    <string name="threads">解码线程数：%1$d</string>
+    <string name="service_streaming">小企鹅语音 · 流式</string>
+    <string name="service_batch">小企鹅语音 · Whisper</string>
+    <string name="streaming_section">流式（边说边出字）</string>
+    <string name="batch_section">Whisper（说完再整句转写）</string>
+    <string name="active_streaming">流式模型：%1$s</string>
+    <string name="active_streaming_none">流式模型：无</string>
+    <string name="active_batch">Whisper 模型：%1$s</string>
+    <string name="active_batch_none">Whisper 模型：无</string>
+    <string name="imported_hint">导入的模型会按类型自动归入对应引擎。</string>
+    <string name="download_notification_denied">未授予通知权限——下载仍会继续，只是不会在通知栏显示进度。</string>
+    <string name="provider_streaming">小企鹅语音（内置） · 流式</string>
+    <string name="provider_batch">小企鹅语音（内置） · Whisper</string>
+</resources>

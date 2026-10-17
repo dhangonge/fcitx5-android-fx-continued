@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
  */
-package org.fcitx.fcitx5.android.plugin.voice_asr.engine
+package org.fcitx.fcitx5.android.voice.engine
 
 import android.app.DownloadManager
 import android.content.Context
@@ -12,6 +12,7 @@ import android.util.Log
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.fcitx.fcitx5.android.lib.voice_asr.R
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
@@ -65,7 +66,7 @@ object ModelInstaller {
             .setTitle(model.label)
             .setDescription(
                 context.getString(
-                    org.fcitx.fcitx5.android.plugin.voice_asr.R.string.download_notification_desc
+                    R.string.download_notification_desc
                 )
             )
             .setDestinationInExternalFilesDir(context, null, "$DOWNLOAD_DIR/${archiveName(model)}")

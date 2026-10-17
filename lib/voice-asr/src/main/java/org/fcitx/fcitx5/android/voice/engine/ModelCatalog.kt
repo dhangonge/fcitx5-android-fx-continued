@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
  */
-package org.fcitx.fcitx5.android.plugin.voice_asr.engine
+package org.fcitx.fcitx5.android.voice.engine
 
 /** Which engine a model belongs to; the two are separate IME voice providers. */
 enum class ModelKind {

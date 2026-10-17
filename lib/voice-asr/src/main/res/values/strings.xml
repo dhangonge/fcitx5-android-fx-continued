@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="settings_title">Voice input</string>
+    <string name="no_model_hint">Download a model below, or import an archive (.tar.bz2 / .zip) exported from another device.</string>
+    <string name="installed_section">Installed</string>
+    <string name="download_section">Download</string>
+    <string name="download">Download</string>
+    <string name="downloading">Downloading… %1$s</string>
+    <string name="use">Use</string>
+    <string name="in_use">In use</string>
+    <string name="voice_model_delete">Delete</string>
+    <string name="delete_confirm_message">Delete %1$s? The files on disk are removed.</string>
+    <string name="import_model">Import from file</string>
+    <string name="import_failed">This file does not contain a usable model</string>
+    <string name="import_succeeded">Imported %1$s</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_notification_desc">Voice model download</string>
+    <string name="installing">Installing…</string>
+    <string name="model_size">%1$s MB</string>
+    <string name="threads">Decoding threads: %1$d</string>
+    <string name="service_streaming">Penguin Voice · streaming</string>
+    <string name="service_batch">Penguin Voice · Whisper</string>
+    <string name="streaming_section">Streaming (words appear while you speak)</string>
+    <string name="batch_section">Whisper (transcribes after you stop)</string>
+    <string name="active_streaming">Streaming model: %1$s</string>
+    <string name="active_streaming_none">Streaming model: none</string>
+    <string name="active_batch">Whisper model: %1$s</string>
+    <string name="active_batch_none">Whisper model: none</string>
+    <string name="imported_hint">Imports land in the matching engine automatically.</string>
+    <string name="download_notification_denied">Notification permission denied — the download still runs, but its progress stays hidden in the status bar.</string>
+    <string name="provider_streaming">Penguin Voice built-in · streaming</string>
+    <string name="provider_batch">Penguin Voice built-in · Whisper</string>
+</resources>

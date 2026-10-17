@@ -235,6 +235,8 @@ object VoiceInputProviderManager {
      */
     fun ensureProviderAvailable(service: FcitxInputMethodService, id: String) {
         if (!isProviderId(id)) return
+        // In-process providers are always there; nothing to wake up.
+        if (VoiceInputProviderRegistry.get(id) != null) return
         if (isActive()) return
         val now = SystemClock.elapsedRealtime()
         if (now - keepAliveLastAttemptElapsed < KEEPALIVE_MIN_INTERVAL_MS) return

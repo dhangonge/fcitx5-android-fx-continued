@@ -77,6 +77,11 @@
         tools:replace="android:supportsRtl"
         tools:targetApi="33">
         <activity
+            android:name="org.fcitx.fcitx5.android.voice.VoiceAsrSettingsActivity"
+            android:exported="false"
+            android:label="@string/voice_model_manage_title"
+            android:theme="@style/VoiceAsrTheme" />
+        <activity
             android:name=".ui.setup.SetupActivity"
             android:exported="false"
             android:launchMode="singleTask" />

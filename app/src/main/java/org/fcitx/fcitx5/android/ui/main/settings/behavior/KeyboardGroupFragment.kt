@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.input.config.UserConfigFiles
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.data.LayoutDataManager
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.webeditor.ImeWebEditorBridgeServer
+import org.fcitx.fcitx5.android.voice.VoiceAsrSettingsActivity
 
 /**
  * Sub-fragment showing only the preferences belonging to one keyboard settings group.
@@ -115,6 +116,16 @@ class KeyboardGroupFragment : ManagedPreferenceFragment(AppPrefs.getInstance().k
             addTool(screen, "tool_edit_buttons",
                 R.string.edit_buttons, R.string.edit_buttons_summary
             ) { startActivity(Intent(requireContext(), ButtonsCustomizerActivity::class.java)) }
+
+            // The built-in ASR engines ship with the app, so their model manager
+            // lives here instead of in a separate plugin app.
+            addTool(screen, "tool_voice_models",
+                R.string.voice_model_manage_title, R.string.voice_model_manage_summary
+            ) {
+                startActivity(
+                    Intent(requireContext(), VoiceAsrSettingsActivity::class.java)
+                )
+            }
         }
     }
 
