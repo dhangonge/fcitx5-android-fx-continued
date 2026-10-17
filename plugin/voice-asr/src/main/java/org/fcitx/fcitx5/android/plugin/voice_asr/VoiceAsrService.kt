@@ -31,6 +31,7 @@ class VoiceAsrService : Service() {
     }
 
     private var engine: StreamingEngine? = null
+    private var engineModelId: String? = null
     private var session: StreamingEngine.Session? = null
     private var callback: IVoiceInputCallback? = null
     private var sessionActive = false
@@ -92,14 +93,22 @@ class VoiceAsrService : Service() {
     }
 
     private fun ensureEngine(): StreamingEngine? {
-        engine?.let { return it }
         val model = ModelStore.active(this) ?: return null
+        engine?.let { if (engineModelId == model.id) return it }
+        closeEngine()
         Log.i(TAG, "Loading model ${model.id} (${model.sizeBytes / 1024 / 1024} MiB)")
         val started = System.currentTimeMillis()
-        return StreamingEngine(model).also {
+        return StreamingEngine(model, ModelStore.numThreads(this)).also {
             engine = it
+            engineModelId = model.id
             Log.i(TAG, "Model loaded in ${System.currentTimeMillis() - started} ms")
         }
+    }
+
+    private fun closeEngine() {
+        runCatching { engine?.close() }
+        engine = null
+        engineModelId = null
     }
 
     private fun feedOnWorker(pcm: ByteArray) {
@@ -197,10 +206,7 @@ class VoiceAsrService : Service() {
 
     override fun onDestroy() {
         worker.execute { finishOnWorker() }
-        worker.execute {
-            runCatching { engine?.close() }
-            engine = null
-        }
+        worker.execute { closeEngine() }
         worker.shutdown()
         super.onDestroy()
     }

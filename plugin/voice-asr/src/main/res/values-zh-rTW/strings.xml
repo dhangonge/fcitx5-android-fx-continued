@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">小企鵝語音輸入外掛（偵錯）</string>
+    <string name="app_name_release">小企鵝語音輸入外掛</string>
+    <string name="description">為小企鵝輸入法提供離線語音輸入</string>
+
+    <string name="settings_title">語音輸入</string>
+    <string name="active_model">目前模型：%1$s</string>
+    <string name="active_model_none">目前模型：無</string>
+    <string name="no_model_hint">請在下方下載模型，或匯入從其他裝置匯出的壓縮檔（.tar.bz2 / .zip）。</string>
+    <string name="installed_section">已安裝</string>
+    <string name="download_section">可下載</string>
+    <string name="download">下載</string>
+    <string name="downloading">正在下載… %1$s</string>
+    <string name="use">使用</string>
+    <string name="in_use">使用中</string>
+    <string name="delete">刪除</string>
+    <string name="delete_confirm_message">刪除 %1$s？磁碟上的檔案會被移除。</string>
+    <string name="import_model">從檔案匯入</string>
+    <string name="import_failed">該檔案裡沒有可用的模型</string>
+    <string name="import_succeeded">已匯入 %1$s</string>
+    <string name="download_failed">下載失敗</string>
+    <string name="download_notification_desc">語音模型下載</string>
+    <string name="installing">正在安裝…</string>
+    <string name="model_size">%1$s MB</string>
+    <string name="threads">解碼執行緒數：%1$d</string>
+</resources>

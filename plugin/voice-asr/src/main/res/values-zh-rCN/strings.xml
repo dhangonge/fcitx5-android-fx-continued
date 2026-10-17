@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">小企鹅语音输入插件（调试）</string>
+    <string name="app_name_release">小企鹅语音输入插件</string>
+    <string name="description">为小企鹅输入法提供离线语音输入</string>
+
+    <string name="settings_title">语音输入</string>
+    <string name="active_model">当前模型：%1$s</string>
+    <string name="active_model_none">当前模型：无</string>
+    <string name="no_model_hint">请在下方下载模型，或导入从其他设备导出的压缩包（.tar.bz2 / .zip）。</string>
+    <string name="installed_section">已安装</string>
+    <string name="download_section">可下载</string>
+    <string name="download">下载</string>
+    <string name="downloading">正在下载… %1$s</string>
+    <string name="use">使用</string>
+    <string name="in_use">使用中</string>
+    <string name="delete">删除</string>
+    <string name="delete_confirm_message">删除 %1$s？磁盘上的文件会被移除。</string>
+    <string name="import_model">从文件导入</string>
+    <string name="import_failed">该文件里没有可用的模型</string>
+    <string name="import_succeeded">已导入 %1$s</string>
+    <string name="download_failed">下载失败</string>
+    <string name="download_notification_desc">语音模型下载</string>
+    <string name="installing">正在安装…</string>
+    <string name="model_size">%1$s MB</string>
+    <string name="threads">解码线程数：%1$d</string>
+</resources>

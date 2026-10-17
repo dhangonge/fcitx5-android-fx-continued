@@ -1,0 +1,10 @@
+{
+    "uniqueId": "org.apache.commons/commons-compress",
+    "artifactVersion": "1.28.0",
+    "description": "Defines an API for working with tar, zip and bzip2 files",
+    "name": "org.apache.commons/commons-compress",
+    "website": "https://commons.apache.org/proper/commons-compress/",
+    "licenses": [
+        "Apache-2.0"
+    ]
+}

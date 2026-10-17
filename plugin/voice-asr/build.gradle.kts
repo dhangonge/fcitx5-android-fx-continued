@@ -114,4 +114,11 @@ tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(fetchSherpaOn
 
 dependencies {
     implementation(project(":lib:plugin-base"))
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines)
+    implementation(libs.splitties.views.dsl)
+    // bzip2 + tar, for the .tar.bz2 model archives sherpa-onnx publishes
+    implementation("org.apache.commons:commons-compress:1.28.0")
 }

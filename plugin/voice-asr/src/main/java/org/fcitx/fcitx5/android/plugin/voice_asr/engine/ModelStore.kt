@@ -15,6 +15,8 @@ import java.io.File
 object ModelStore {
 
     private const val MODELS_DIR = "models"
+    private const val PREFS = "voice_asr"
+    private const val KEY_ACTIVE = "active_model"
 
     fun modelsDir(context: Context): File = File(context.filesDir, MODELS_DIR)
 
@@ -27,9 +29,34 @@ object ModelStore {
             .sortedBy { it.id }
     }
 
-    /**
-     * The model to use when the user has not picked one. Stage 1 has no picker
-     * yet, so this is simply the first complete installation.
-     */
-    fun active(context: Context): StreamingModel? = available(context).firstOrNull()
+    /** The model the user picked, or the only installed one when nothing is pinned. */
+    fun active(context: Context): StreamingModel? {
+        val installed = available(context)
+        if (installed.isEmpty()) return null
+        val picked = prefs(context).getString(KEY_ACTIVE, null)
+        return installed.firstOrNull { it.id == picked } ?: installed.first()
+    }
+
+    fun setActive(context: Context, id: String?) {
+        prefs(context).edit().apply {
+            if (id == null) remove(KEY_ACTIVE) else putString(KEY_ACTIVE, id)
+        }.apply()
+    }
+
+    fun numThreads(context: Context): Int =
+        prefs(context).getInt("num_threads", DEFAULT_THREADS).coerceIn(1, 8)
+
+    fun setNumThreads(context: Context, threads: Int) {
+        prefs(context).edit().putInt("num_threads", threads.coerceIn(1, 8)).apply()
+    }
+
+    fun delete(context: Context, model: StreamingModel): Boolean {
+        if (active(context)?.id == model.id) setActive(context, null)
+        return model.dir.deleteRecursively()
+    }
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private const val DEFAULT_THREADS = 2
 }

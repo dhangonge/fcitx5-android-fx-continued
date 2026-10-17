@@ -4,5 +4,24 @@
     <string name="app_name_release">Penguin Voice Input Plugin</string>
     <string name="description">Offline voice input for Fcitx5 for Android</string>
 
-    <string name="scaffold_result">Voice input is wired up (no engine yet)</string>
+    <string name="settings_title">Voice input</string>
+    <string name="active_model">Active model: %1$s</string>
+    <string name="active_model_none">Active model: none</string>
+    <string name="no_model_hint">Download a model below, or import an archive (.tar.bz2 / .zip) exported from another device.</string>
+    <string name="installed_section">Installed</string>
+    <string name="download_section">Download</string>
+    <string name="download">Download</string>
+    <string name="downloading">Downloading… %1$s</string>
+    <string name="use">Use</string>
+    <string name="in_use">In use</string>
+    <string name="delete">Delete</string>
+    <string name="delete_confirm_message">Delete %1$s? The files on disk are removed.</string>
+    <string name="import_model">Import from file</string>
+    <string name="import_failed">This file does not contain a usable model</string>
+    <string name="import_succeeded">Imported %1$s</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_notification_desc">Voice model download</string>
+    <string name="installing">Installing…</string>
+    <string name="model_size">%1$s MB</string>
+    <string name="threads">Decoding threads: %1$d</string>
 </resources>
