@@ -32,7 +32,6 @@ object ModelInstaller {
 
     const val ACTION_MODEL_STATE_CHANGED =
         "org.fcitx.fcitx5.android.plugin.voice_asr.MODEL_STATE_CHANGED"
-    const val EXTRA_MODEL_ID = "modelId"
     const val EXTRA_ERROR = "error"
 
     private const val TAG = "FcitxVoiceAsr"
@@ -76,8 +75,20 @@ object ModelInstaller {
         return id
     }
 
-    fun pendingModelId(context: Context, downloadId: Long): String? =
-        downloadPrefs(context).getString(downloadId.toString(), null)
+    /** DownloadManager status for [downloadId], or -1 when the system does not know it. */
+    fun downloadStatus(context: Context, downloadId: Long): Int = runCatching {
+        context.getSystemService(DownloadManager::class.java)
+            .query(DownloadManager.Query().setFilterById(downloadId)).use { cursor ->
+                if (!cursor.moveToFirst()) -1
+                else cursor.getInt(
+                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
+                )
+            }
+    }.getOrDefault(-1)
+
+    fun isRunning(status: Int): Boolean =
+        status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING ||
+            status == STATUS_PAUSED
 
     /**
      * modelId -> downloadId for transfers that are still running.
@@ -93,19 +104,11 @@ object ModelInstaller {
             (value as? String)?.let { it to downloadId }
         }
         if (stored.isEmpty()) return emptyMap()
-        val manager = context.getSystemService(DownloadManager::class.java)
         val live = mutableMapOf<String, Long>()
         val stale = mutableListOf<String>()
         stored.forEach { (modelId, downloadId) ->
-            val status = runCatching {
-                manager.query(DownloadManager.Query().setFilterById(downloadId)).use { cursor ->
-                    if (!cursor.moveToFirst()) -1
-                    else cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                }
-            }.getOrDefault(-1)
-            val running = status == DownloadManager.STATUS_PENDING ||
-                status == DownloadManager.STATUS_RUNNING || status == STATUS_PAUSED
-            if (running) live[modelId] = downloadId else stale += downloadId.toString()
+            if (isRunning(downloadStatus(context, downloadId))) live[modelId] = downloadId
+            else stale += downloadId.toString()
         }
         if (stale.isNotEmpty()) {
             prefs.edit().apply { stale.forEach { remove(it) } }.apply()

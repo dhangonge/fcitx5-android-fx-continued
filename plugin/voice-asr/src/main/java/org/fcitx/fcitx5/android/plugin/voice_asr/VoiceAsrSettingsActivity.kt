@@ -56,9 +56,10 @@ import java.util.Locale
  * them (streaming transducer, or Whisper for whole-utterance input). Every row is
  * rebuilt on state changes; only the download progress line updates in place.
  *
- * Unpacking happens here rather than in [ModelDownloadReceiver]: a 100 MB bzip2
- * archive outlives the few seconds a receiver gets. A download that finishes
- * while this screen is closed is therefore unpacked the next time it opens.
+ * Unpacking happens here rather than in a broadcast receiver: a 100 MB bzip2
+ * archive outlives the few seconds a receiver gets. The download manager is
+ * polled while the screen is visible, so a transfer that finishes with the screen
+ * closed is unpacked the next time it opens.
  */
 class VoiceAsrSettingsActivity : AppCompatActivity() {
 
@@ -151,6 +152,10 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         ticker = lifecycleScope.launch {
             while (isActive) {
                 updateProgress()
+                if (collectFinishedDownloads()) {
+                    refreshAll()
+                    installPendingArchives()
+                }
                 delay(500)
             }
         }
@@ -237,6 +242,12 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
                 }
                 progressViews[remote.id] = progress
                 add(progress, lParams(matchParent, wrapContent))
+                if (busy && state.downloads[remote.id] == null) {
+                    // Either queued for unpacking or being unpacked right now; the
+                    // download-progress text does not apply once the transfer is gone.
+                    progress.text = getString(R.string.installing)
+                    progress.visibility = View.VISIBLE
+                }
                 if (!alreadyInstalled && !busy) {
                     add(button {
                         text = getString(R.string.download)
@@ -346,12 +357,42 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
     }
 
     /**
+     * Drops transfers the download manager no longer runs.
+     *
+     * The settings screen cannot rely on `ACTION_DOWNLOAD_COMPLETE`: the download
+     * provider is a different uid, so a non-exported receiver never sees it, and a
+     * finished transfer would keep its row on "installing" forever. Polling the
+     * status reaches the same conclusion within one tick.
+     */
+    private suspend fun collectFinishedDownloads(): Boolean {
+        val running = pending
+        if (running.isEmpty()) return false
+        val finished = withContext(Dispatchers.IO) {
+            running.filterValues { id ->
+                !ModelInstaller.isRunning(
+                    ModelInstaller.downloadStatus(this@VoiceAsrSettingsActivity, id)
+                )
+            }.values
+        }
+        if (finished.isEmpty()) return false
+        withContext(Dispatchers.IO) {
+            finished.forEach { ModelInstaller.forgetDownload(this@VoiceAsrSettingsActivity, it) }
+        }
+        return true
+    }
+
+    /**
      * Unpacks archives that the download manager already finished. Runs here (and
-     * not in the broadcast receiver) because extraction easily outlives the few
+     * not in a broadcast receiver) because extraction easily outlives the few
      * seconds a receiver is allowed to live.
      */
     private fun installPendingArchives() {
-        ModelInstaller.pendingArchives(this).forEach { archive ->
+        // A transfer that is still running has already created its target file, and
+        // a truncated bzip2 stream would only fail and delete it under the download.
+        val inFlight = ModelInstaller.pendingDownloads(this).keys
+        ModelInstaller.pendingArchives(this)
+            .filterNot { archive -> inFlight.any { archive.name.startsWith(it) } }
+            .forEach { archive ->
             val modelId =
                 ModelCatalog.all().firstOrNull { archive.name.startsWith(it.id) }?.id
                     ?: archive.name

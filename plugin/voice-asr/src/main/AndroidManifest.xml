@@ -42,18 +42,6 @@
         </activity>
 
         <!--
-            System download manager delivers ACTION_DOWNLOAD_COMPLETE explicitly to
-            this app, and the system uid is allowed to reach a non-exported receiver.
-        -->
-        <receiver
-            android:name=".ModelDownloadReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
-            </intent-filter>
-        </receiver>
-
-        <!--
             Exported so the IME can find it with queryIntentServices; the caller is
             verified in VoiceInputCallers because an `android:permission` guard
             would only match one host variant (see that file). The fixed actions
