@@ -40,4 +40,6 @@ include(":plugin:jyutping")
 include(":plugin:thai")
 include(":plugin:text-editor")
 include(":plugin:text-editor:language-textmate")
-include(":plugin:voice-asr")
+// :plugin:voice-asr is intentionally not built: the same engine now runs in-process inside the
+// app (:lib:voice-asr, see VoiceAsrProviders), and a separate process is exactly what ROM freezers
+// kill. The sources stay as the reference implementation of the IVoiceInputProvider AIDL contract.
