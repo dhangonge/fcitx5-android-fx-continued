@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Release builds shrink resources (AndroidAppConventionPlugin), and nothing in this
+    package reads @integer/voice_engine_api at runtime: the host reads it out of the
+    package's resources by name. Without this keep rule the shrinker drops it, the
+    host reads 0, and every installed engine looks like a version mismatch.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@integer/voice_engine_api" />
