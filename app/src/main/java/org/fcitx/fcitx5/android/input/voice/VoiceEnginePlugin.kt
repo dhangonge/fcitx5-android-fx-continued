@@ -66,23 +66,28 @@ object VoiceEnginePlugin {
 
     private fun query(context: Context): String? {
         val pm = context.packageManager
-        val candidates = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentActivities(
-                    Intent(BuildConfig.ORIGINAL_PLUGIN_MANIFEST_ACTION),
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentActivities(
-                    Intent(BuildConfig.ORIGINAL_PLUGIN_MANIFEST_ACTION),
-                    PackageManager.MATCH_ALL
-                )
-            }.map { it.activityInfo.packageName }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to query voice engine packages")
-            return null
-        }
+        // A debug plugin build advertises the debug action, and it is also signed with
+        // the debug key, so the release action would never match on a debug host.
+        val actions = listOf(
+            BuildConfig.ORIGINAL_PLUGIN_MANIFEST_ACTION,
+            BuildConfig.ORIGINAL_DEBUG_PLUGIN_MANIFEST_ACTION
+        ).distinct()
+        val candidates = actions.flatMap { action ->
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentActivities(
+                        Intent(action),
+                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.queryIntentActivities(Intent(action), PackageManager.MATCH_ALL)
+                }.map { it.activityInfo.packageName }
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to query voice engine packages for $action")
+                emptyList()
+            }
+        }.distinct()
 
         for (packageName in candidates) {
             if (!DataManager.hasSameSignature(packageName)) {
