@@ -5,7 +5,7 @@
 package org.fcitx.fcitx5.android.voice.engine
 
 import android.util.Log
-import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -18,26 +18,33 @@ import java.nio.ByteOrder
  *
  * The engine needs the JNI library and a model, neither of which fits in a unit
  * test, so this runs on a device. The model and the clip are not checked in:
- * push them into the test app's external files dir first, or the test is skipped.
+ * stage them under [STAGING] first, or the test is skipped.
  *
- *   adb push sense-voice/ /sdcard/Android/data/org.fcitx.fcitx5.android.lib.voice_asr.test/files/
- *   adb push zh.wav /sdcard/Android/data/org.fcitx.fcitx5.android.lib.voice_asr.test/files/
+ *   adb push sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17 \
+ *       /data/local/tmp/voice-asr-test/
+ *   adb push zh.wav /data/local/tmp/voice-asr-test/
+ *
+ * Not the app's own external files dir: a directory that `adb push` created is
+ * owned by `shell`, and the storage FUSE layer then hides its entries from the
+ * app's uid, which shows up as an empty `listFiles()`.
  */
 class BatchEngineDeviceTest {
 
-    private val files: File
-        get() = requireNotNull(
-            InstrumentationRegistry.getInstrumentation().context.getExternalFilesDir(null)
-        )
+    private val root = File(STAGING)
+
+    private val wav: File
+        get() = File(root, "zh.wav")
 
     @Test
     fun decodesChineseSpeech() {
-        val root = files
         val modelDir = File(root, MODEL_ID)
-        val wav = File(root, "zh.wav")
-        assumeTrue("push $MODEL_ID and zh.wav into ${root.path}", modelDir.isDirectory && wav.isFile)
+        assumeTrue("stage the model under ${root.path}", modelDir.isDirectory && wav.isFile)
 
-        val model = requireNotNull(BatchModel.fromDirectory(modelDir)) { "unrecognised model dir" }
+        val listing = modelDir.listFiles().orEmpty().joinToString { "${it.name}(${it.length()})" }
+        Log.i(TAG, "model dir ${modelDir.path}: [$listing]")
+        val model = BatchModel.fromDirectory(modelDir)
+        assertNotNull("unrecognised model dir, saw [$listing]", model)
+        model!!
         assertTrue("expected a fused model", model.model != null)
 
         val samples = readWav(wav)
@@ -74,6 +81,7 @@ class BatchEngineDeviceTest {
 
     private companion object {
         const val TAG = "FcitxVoiceAsrTest"
+        const val STAGING = "/data/local/tmp/voice-asr-test"
         const val SAMPLE_RATE = 16000
         const val MODEL_ID = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
     }
