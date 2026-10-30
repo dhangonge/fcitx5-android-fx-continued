@@ -55,7 +55,7 @@ import java.util.Locale
 
 /**
  * Install, pick and remove offline ASR models, grouped by the engine that can use
- * them (streaming transducer, or Whisper for whole-utterance input). Every row is
+ * them (streaming transducer, or a whole-utterance model). Every row is
  * rebuilt on state changes; only the download progress line updates in place.
  *
  * Unpacking happens here rather than in a broadcast receiver: a 100 MB bzip2

@@ -9,7 +9,7 @@ enum class ModelKind {
     /** Transducer decoder, emits text while the user is still speaking. */
     STREAMING,
 
-    /** Whisper, transcribes the whole utterance once the mic is released. */
+    /** Whole-utterance model, transcribes once the mic is released. */
     BATCH,
 }
 
@@ -21,7 +21,9 @@ data class ModelFile(val name: String, val bytes: Long)
  *
  * Streaming entries are limited to transducer ("zipformer") archives: the
  * engine configures a transducer decoder, so CTC-only releases would load but
- * never decode.
+ * never decode. Batch entries were Whisper until 0.1.3; SenseVoice and
+ * Paraformer replaced it because Whisper's weakest language is exactly the one
+ * this IME is used in.
  *
  * Every model has two sources. [url] is the release archive on GitHub, one
  * tarball per model; [mirrorRepo] is the same model on Hugging Face, which
@@ -105,29 +107,29 @@ object ModelCatalog {
 
     val batch: List<RemoteModel> = listOf(
         RemoteModel(
-            id = "sherpa-onnx-whisper-tiny",
-            label = "Whisper 多语言 · tiny（快）",
-            archiveBytes = 116_204_861L,
-            url = asset("sherpa-onnx-whisper-tiny.tar.bz2"),
+            id = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+            label = "中英日韩粤 · SenseVoice（推荐）",
+            archiveBytes = 163_002_883L,
+            url = asset("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"),
             kind = ModelKind.BATCH,
-            mirrorRepo = "csukuangfj/sherpa-onnx-whisper-tiny",
+            // The mirror repo carries the fp32 weights next to the int8 ones;
+            // BatchModel picks model.int8.onnx.
+            mirrorRepo = "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
             mirrorFiles = weights(
-                file("tiny-encoder.int8.onnx", 12_937_772L),
-                file("tiny-decoder.int8.onnx", 89_855_401L),
-                file("tiny-tokens.txt", 816_730L),
+                file("model.int8.onnx", 239_233_841L),
+                file("tokens.txt", 315_894L),
             ),
         ),
         RemoteModel(
-            id = "sherpa-onnx-whisper-base",
-            label = "Whisper 多语言 · base（更准）",
-            archiveBytes = 207_557_382L,
-            url = asset("sherpa-onnx-whisper-base.tar.bz2"),
+            id = "sherpa-onnx-paraformer-zh-small-2024-03-09",
+            label = "中文普通话 · Paraformer 轻量",
+            archiveBytes = 77_920_048L,
+            url = asset("sherpa-onnx-paraformer-zh-small-2024-03-09.tar.bz2"),
             kind = ModelKind.BATCH,
-            mirrorRepo = "csukuangfj/sherpa-onnx-whisper-base",
+            mirrorRepo = "csukuangfj/sherpa-onnx-paraformer-zh-small-2024-03-09",
             mirrorFiles = weights(
-                file("base-encoder.int8.onnx", 29_120_534L),
-                file("base-decoder.int8.onnx", 130_672_026L),
-                file("base-tokens.txt", 816_730L),
+                file("model.int8.onnx", 81_828_675L),
+                file("tokens.txt", 75_352L),
             ),
         ),
     )

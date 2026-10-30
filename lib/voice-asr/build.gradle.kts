@@ -95,6 +95,7 @@ android {
 
     defaultConfig {
         consumerProguardFiles("proguard-rules.pro")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 }
 
@@ -123,4 +124,9 @@ dependencies {
     implementation(libs.splitties.views.dsl)
     // bzip2 + tar, for the .tar.bz2 model archives sherpa-onnx publishes
     implementation("org.apache.commons:commons-compress:1.28.0")
+
+    testImplementation(libs.junit)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

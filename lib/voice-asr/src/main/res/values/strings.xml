@@ -24,15 +24,15 @@
     <string name="model_size">%1$s MB</string>
     <string name="threads">Decoding threads: %1$d</string>
     <string name="service_streaming">Penguin Voice · streaming</string>
-    <string name="service_batch">Penguin Voice · Whisper</string>
+    <string name="service_batch">Penguin Voice · offline</string>
     <string name="streaming_section">Streaming (words appear while you speak)</string>
-    <string name="batch_section">Whisper (transcribes after you stop)</string>
+    <string name="batch_section">Offline (transcribes after you stop)</string>
     <string name="active_streaming">Streaming model: %1$s</string>
     <string name="active_streaming_none">Streaming model: none</string>
-    <string name="active_batch">Whisper model: %1$s</string>
-    <string name="active_batch_none">Whisper model: none</string>
+    <string name="active_batch">Offline model: %1$s</string>
+    <string name="active_batch_none">Offline model: none</string>
     <string name="imported_hint">Imports land in the matching engine automatically.</string>
     <string name="download_notification_denied">Notification permission denied — the download still runs, but its progress stays hidden in the status bar.</string>
     <string name="provider_streaming">Penguin Voice built-in · streaming</string>
-    <string name="provider_batch">Penguin Voice built-in · Whisper</string>
+    <string name="provider_batch">Penguin Voice built-in · offline</string>
 </resources>

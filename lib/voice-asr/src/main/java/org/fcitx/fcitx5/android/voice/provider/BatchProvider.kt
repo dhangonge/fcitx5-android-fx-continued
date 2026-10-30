@@ -19,8 +19,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * Whole-utterance ASR, in process: buffers the recording and transcribes it with
- * Whisper when the host signals the end of the stream. Advertised as its own
+ * Whole-utterance ASR, in process: buffers the recording and transcribes it when
+ * the host signals the end of the stream. Advertised as its own
  * voice input entry next to the streaming provider, because the two behave very
  * differently from the user's point of view (no live words here).
  *
@@ -162,7 +162,7 @@ class BatchProvider(
         try {
             val active = ensureEngine()
             if (active == null) {
-                fail(cb, VoiceInputIpc.ErrorCodes.NOT_AVAILABLE, "No Whisper model installed")
+                fail(cb, VoiceInputIpc.ErrorCodes.NOT_AVAILABLE, "No offline model installed")
                 return
             }
             cb.onReady()
@@ -176,7 +176,7 @@ class BatchProvider(
         val model = ModelStore.activeBatch(context) ?: return null
         engine?.let { if (engineModelId == model.id) return it }
         closeEngine()
-        Log.i(TAG, "Loading Whisper model ${model.id}")
+        Log.i(TAG, "Loading offline model ${model.id} (${model.family})")
         val started = System.currentTimeMillis()
         return BatchEngine(model, ModelStore.numThreads(context)).also {
             engine = it

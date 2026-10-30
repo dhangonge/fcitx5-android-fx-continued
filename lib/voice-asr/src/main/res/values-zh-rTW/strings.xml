@@ -24,15 +24,15 @@
     <string name="model_size">%1$s MB</string>
     <string name="threads">解碼執行緒數：%1$d</string>
     <string name="service_streaming">小企鵝語音 · 串流</string>
-    <string name="service_batch">小企鵝語音 · Whisper</string>
+    <string name="service_batch">小企鵝語音 · 整句</string>
     <string name="streaming_section">串流（邊說邊出字）</string>
-    <string name="batch_section">Whisper（說完再整句轉寫）</string>
+    <string name="batch_section">整句（說完再轉寫）</string>
     <string name="active_streaming">串流模型：%1$s</string>
     <string name="active_streaming_none">串流模型：無</string>
-    <string name="active_batch">Whisper 模型：%1$s</string>
-    <string name="active_batch_none">Whisper 模型：無</string>
+    <string name="active_batch">整句模型：%1$s</string>
+    <string name="active_batch_none">整句模型：無</string>
     <string name="imported_hint">匯入的模型會按類型自動歸入對應引擎。</string>
     <string name="download_notification_denied">未授予通知權限——下載仍會繼續，只是不會在通知列顯示進度。</string>
     <string name="provider_streaming">小企鵝語音（內建） · 串流</string>
-    <string name="provider_batch">小企鵝語音（內建） · Whisper</string>
+    <string name="provider_batch">小企鵝語音（內建） · 整句</string>
 </resources>
