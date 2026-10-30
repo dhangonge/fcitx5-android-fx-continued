@@ -35,4 +35,5 @@
     <string name="download_notification_denied">Notification permission denied — the download still runs, but its progress stays hidden in the status bar.</string>
     <string name="provider_streaming">Penguin Voice built-in · streaming</string>
     <string name="provider_batch">Penguin Voice built-in · offline</string>
+    <string name="engine_missing_hint">Voice engine not installed: the recognition library is a separate APK (Voice Engine) and is required before a model can be used. Install it, then reopen the keyboard. Models already downloaded are kept.</string>
 </resources>

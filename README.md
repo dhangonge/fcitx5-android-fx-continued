@@ -25,8 +25,9 @@ fcitx5-android/fcitx5-android   原版（上游官方）
 - 自定义图标主题（PNG / SVG / XML drawable / ZIP / 二维码）与自定义字体（`fontset.json`），
   工具栏与 Kawaii Bar 按钮图标可换
 - Macro 宏按键，支持图层切换与分方向行为
-- 语音输入：内置离线识别引擎（sherpa-onnx），流式 zipformer 与 Whisper 整句两种模式，
-  在输入法进程内直接跑，不需要另装插件；模型在设置里下载或导入，见下文「语音输入」
+- 语音输入：离线识别引擎（sherpa-onnx），流式 zipformer 与 SenseVoice 整句两种模式，
+  在输入法进程内直接跑（引擎原生库单独打一个「语音引擎」APK，装一次即可，识别仍在输入法进程里，
+  不会被墓碑机制冻结）；模型在设置里下载或导入，见下文「语音输入」
 - 仍然保留 ASR AIDL 桥接（`IVoiceInputProvider` / `IVoiceInputCallback`），第三方插件 APK
   可以把识别放在自己的进程里，详见 [ASR_VOICE_INPUT_AIDL_INTEGRATION.md](ASR_VOICE_INPUT_AIDL_INTEGRATION.md)
 - 额外汇总插件：`pinyin-lm`、`text-editor`（正则、Tab 视图）、`table-data`
@@ -86,19 +87,25 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk CMAKE_BUILD_PARALLEL_LEVEL=2 \
 
 ## 语音输入
 
-识别引擎已经内置在主程序里，装完就能用，**不需要额外装插件 APK**：
+识别跑在输入法进程里，但要先装一个「语音引擎」APK（`voice_engine`，约 12 MB）：原生识别库
+单独打包，主程序因此不必为不用语音的人背 9 MB。装完一次就不用再管，**不需要重启手机**：
 
-1. 设置 → 虚拟键盘 → 工具栏与候选栏 → 打开「显示语音输入按钮」
-2. 同一个页面点「首选语音输入」，选「小企鹅语音（内置） · 流式」（边说边出字）
+1. 从 Releases 里装主程序，再装同一版本的 `voice_engine` 插件 APK（同一签名，可直接互相安装）
+2. 设置 → 虚拟键盘 → 工具栏与候选栏 → 打开「显示语音输入按钮」
+3. 同一个页面点「首选语音输入」，选「小企鹅语音（内置） · 流式」（边说边出字）
    或「小企鹅语音（内置） · 整句」（说完再整句转写）
-3. 没有模型时先装模型：同一个页面往下滚到「语音模型」，点「国内镜像下载」（hf-mirror.com，
+4. 没有模型时先装模型：同一个页面往下滚到「语音模型」，点「国内镜像下载」（hf-mirror.com，
    不用翻墙，实测 6–8 MB/s）。流式：中文普通话轻量版 24 MB、2025 更准版 160 MB、英文 20M 版 42 MB；
    整句：SenseVoice 中英日韩粤 240 MB（推荐）、Paraformer 中文轻量 82 MB。后面那个 GitHub
    按钮是整包下载，出境线路差时会卡住，卡住可以点「取消下载」。也可以从文件导入（支持
    `.tar.bz2` / `.zip`）。
-4. 键盘弹起后点工具栏上的话筒即可开始／停止录音，识别结果直接上屏。
+5. 键盘弹起后点工具栏上的话筒即可开始／停止录音，识别结果直接上屏。
 
 模型可以并存，随时切换，也能删掉。识别全程离线，不联网、不上传录音。
+
+没装引擎时，「语音模型」页面顶部会提示引擎未安装，话筒也会直接报「不可用」而不是卡在连接中；
+已下载的模型在装上引擎后照常可用。引擎与主程序之间的 JNI 接口版本写在 `gradle.properties`
+的 `voiceEngineApi`，两边的签名和版本对不上时主程序会拒绝加载，而不是在 JNI 里崩掉。
 
 `plugin/voice-asr` 已经不再构建，仓库里只留下源码作为 AIDL 契约的参考实现（引擎与内置的是同一套
 代码，而独立进程恰恰是墓碑机制冻结的目标）。曾经选过旧插件的用户，首次启动时会自动把选择迁到
@@ -111,8 +118,9 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk CMAKE_BUILD_PARALLEL_LEVEL=2 \
 当前只构建 `arm64-v8a`（主流 Android 手机都是这个 ABI），APK 用本仓库的发布密钥签名，
 主程序与插件同一签名，可以直接互相安装。
 
-源码构建同样验证可用：`:app:assembleDebug` 可产出 46 MB 的 `arm64-v8a` APK（含内置语音引擎的
-原生库）。
+源码构建同样验证可用：`:app:assembleDebug` 可产出 17 MB 量级的 `arm64-v8a` APK（不含语音引擎）；
+需要语音时再 `:plugin:voice-engine:assembleDebug`（本地调试想省掉这一步，可以加
+`-PvoiceEngineEmbedded=true` 把原生库塞回主程序）。
 
 ## 反馈
 

@@ -20,6 +20,9 @@ import java.nio.ByteOrder
  * test, so this runs on a device. The model and the clip are not checked in:
  * stage them under [STAGING] first, or the test is skipped.
  *
+ * The JNI library no longer ships in the app: install the voice-engine plugin APK
+ * built from the same commit, or build this variant with -PvoiceEngineEmbedded=true.
+ *
  *   adb push sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17 \
  *       /data/local/tmp/voice-asr-test/
  *   adb push zh.wav /data/local/tmp/voice-asr-test/

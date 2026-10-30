@@ -33,6 +33,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.lib.voice_asr.R
+import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelCatalog
 import org.fcitx.fcitx5.android.voice.engine.ModelDownloader
 import org.fcitx.fcitx5.android.voice.engine.ModelInstaller
@@ -196,6 +197,10 @@ class VoiceAsrSettingsActivity : AppCompatActivity() {
         pending = state.downloads
         progressViews.clear()
         content.removeAllViews()
+
+        if (!EngineLibrary.isAvailable(this)) {
+            content.addLabel(getString(R.string.engine_missing_hint), size = 13f, bottom = 10)
+        }
 
         content.addLabel(
             if (state.activeStreaming != null) {

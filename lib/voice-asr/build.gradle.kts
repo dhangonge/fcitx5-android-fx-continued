@@ -18,10 +18,19 @@ val sherpaArchiveUrl = providers.gradleProperty("sherpaOnnxUrl").getOrElse(
 
 val sherpaJniLibsDir = layout.buildDirectory.dir("sherpa-onnx/jniLibs")
 
+// Bundle the engine library into the app itself instead of loading it from the
+// voice-engine plugin APK. Only for development and device tests: it costs the
+// app ~9 MB and defeats the point of splitting the engine out.
+val embedEngine = providers.gradleProperty("voiceEngineEmbedded")
+    .map(String::toBoolean).orElse(false).get()
+
 /**
  * Downloads the pinned sherpa-onnx tarball, verifies its sha256 and unpacks the
- * jniLibs tree into [sherpaJniLibsDir], registered below as a static jniLibs
- * source directory of every variant.
+ * jniLibs tree into [sherpaJniLibsDir].
+ *
+ * The library itself is packaged by :plugin:voice-engine, which points its own
+ * jniLibs at this directory; the app only bundles it when built with
+ * -PvoiceEngineEmbedded=true.
  *
  * The archive is cached in build/downloads (nothing watches it) so a rebuild does
  * not hit the network, and the URL can be pointed at a mirror with
@@ -96,11 +105,26 @@ android {
     defaultConfig {
         consumerProguardFiles("proguard-rules.pro")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Shared with :plugin:voice-engine (see gradle.properties) so the two halves of
+        // the JNI contract can never drift apart.
+        buildConfigField(
+            "int",
+            "VOICE_ENGINE_API",
+            providers.gradleProperty("voiceEngineApi").get()
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 
 androidComponents {
     onVariants { variant ->
+        // The library normally ships in the voice-engine plugin APK, which the host
+        // loads from that package's lib directory. Development and device-test builds
+        // can bundle it here again with -PvoiceEngineEmbedded=true.
+        if (!embedEngine) return@onVariants
         // The directory is filled in by fetchSherpaOnnx before anything reads it.
         variant.sources.jniLibs?.addStaticSourceDirectory(
             sherpaJniLibsDir.get().asFile.absolutePath
@@ -111,7 +135,7 @@ androidComponents {
 tasks.matching {
     it.name.contains("JniLib") || it.name.startsWith("merge") ||
         it.name.startsWith("bundle") || it.name.startsWith("extract")
-}.configureEach { dependsOn(fetchSherpaOnnx) }
+}.configureEach { if (embedEngine) dependsOn(fetchSherpaOnnx) }
 
 dependencies {
     // The provider interfaces (IVoiceInputProvider) live here, and they are part

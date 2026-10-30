@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">小企鵝輸入法 (語音引擎 | 偵錯)</string>
+    <string name="app_name_release">小企鵝輸入法 (語音引擎)</string>
+    <string name="description">內建語音輸入使用的離線語音辨識引擎（sherpa-onnx）</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">Fcitx5 (Voice Engine | Debug)</string>
+    <string name="app_name_release">Fcitx5 (Voice Engine)</string>
+    <string name="description">Offline speech recognition engine (sherpa-onnx) for the built-in voice input</string>
+</resources>

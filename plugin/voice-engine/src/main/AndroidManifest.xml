@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        A carrier for the sherpa-onnx JNI library only: no service and no activity of
+        its own, because the engine runs inside the IME process. Merged with
+        :lib:plugin-base, which provides the exported AboutActivity that advertises
+        ${mainApplicationId}.plugin.MANIFEST, so the app can find this package and read
+        its nativeLibraryDir.
+    -->
+    <application
+        android:label="@string/app_name"
+        android:supportsRtl="true" />
+</manifest>

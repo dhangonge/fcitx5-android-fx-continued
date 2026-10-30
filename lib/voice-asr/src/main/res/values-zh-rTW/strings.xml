@@ -35,4 +35,5 @@
     <string name="download_notification_denied">未授予通知權限——下載仍會繼續，只是不會在通知列顯示進度。</string>
     <string name="provider_streaming">小企鵝語音（內建） · 串流</string>
     <string name="provider_batch">小企鵝語音（內建） · 整句</string>
+    <string name="engine_missing_hint">語音引擎未安裝：辨識庫是獨立的「語音引擎」安裝包，沒有它就無法使用模型。安裝後重新開啟鍵盤即可，已下載的模型不會遺失。</string>
 </resources>

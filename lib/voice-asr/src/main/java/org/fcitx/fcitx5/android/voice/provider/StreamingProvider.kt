@@ -11,6 +11,7 @@ import android.util.Log
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
 import org.fcitx.fcitx5.android.common.ipc.VoiceInputIpc
+import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
 import org.fcitx.fcitx5.android.voice.engine.Pcm
 import org.fcitx.fcitx5.android.voice.engine.StreamingEngine
@@ -76,6 +77,9 @@ class StreamingProvider(
     }
 
     override fun isAvailable(): Boolean {
+        // A missing engine APK is not something a retry can fix, so report the
+        // provider as unavailable instead of letting the first utterance die in JNI.
+        if (!EngineLibrary.isAvailable(context)) return false
         // availability is about having a model on disk, not about it being
         // loaded: a cold start still works, it is just slower to answer.
         val available = runCatching { ModelStore.activeStreaming(context) != null }
@@ -182,6 +186,14 @@ class StreamingProvider(
         sessionActive = true
         lastPartial = ""
         try {
+            if (!EngineLibrary.isAvailable(context)) {
+                fail(
+                    cb,
+                    VoiceInputIpc.ErrorCodes.NOT_AVAILABLE,
+                    "Voice engine not installed"
+                )
+                return
+            }
             val active = ensureEngine()
             if (active == null) {
                 fail(cb, VoiceInputIpc.ErrorCodes.NOT_AVAILABLE, "No voice model installed")

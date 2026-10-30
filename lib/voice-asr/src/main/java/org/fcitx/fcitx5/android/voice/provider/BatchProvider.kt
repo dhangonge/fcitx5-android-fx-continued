@@ -12,6 +12,7 @@ import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
 import org.fcitx.fcitx5.android.common.ipc.VoiceInputIpc
 import org.fcitx.fcitx5.android.voice.engine.BatchEngine
+import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
 import org.fcitx.fcitx5.android.voice.engine.Pcm
 import java.util.concurrent.ExecutorService
@@ -64,6 +65,9 @@ class BatchProvider(
     }
 
     override fun isAvailable(): Boolean {
+        // A missing engine APK is not something a retry can fix, so report the
+        // provider as unavailable instead of letting the first utterance die in JNI.
+        if (!EngineLibrary.isAvailable(context)) return false
         val available = runCatching { ModelStore.activeBatch(context) != null }
             .getOrDefault(false)
         if (available) preloadEngine()
@@ -160,6 +164,14 @@ class BatchProvider(
         sampleCount = 0
         sessionActive = true
         try {
+            if (!EngineLibrary.isAvailable(context)) {
+                fail(
+                    cb,
+                    VoiceInputIpc.ErrorCodes.NOT_AVAILABLE,
+                    "Voice engine not installed"
+                )
+                return
+            }
             val active = ensureEngine()
             if (active == null) {
                 fail(cb, VoiceInputIpc.ErrorCodes.NOT_AVAILABLE, "No offline model installed")

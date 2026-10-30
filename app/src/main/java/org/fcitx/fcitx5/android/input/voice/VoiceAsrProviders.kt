@@ -43,6 +43,9 @@ object VoiceAsrProviders {
     fun install(context: Context) {
         val appContext = context.applicationContext
         migrateLegacySelection()
+        // Must happen before any engine call: the JNI library lives in a separate
+        // package and is loaded from there.
+        VoiceEnginePlugin.installResolver(appContext)
         if (VoiceInputProviderRegistry.get(STREAMING_ID) != null) return
         val pkg = appContext.packageName
         VoiceInputProviderRegistry.register(

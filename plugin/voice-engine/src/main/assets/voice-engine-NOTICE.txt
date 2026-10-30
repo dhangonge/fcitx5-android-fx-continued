@@ -1,0 +1,22 @@
+Voice engine third-party notices
+================================
+
+This package redistributes prebuilt native libraries from the following projects.
+The text below is a short attribution, not a substitute for the full license, which
+travels with each upstream release.
+
+sherpa-onnx
+  Project: https://github.com/k2-fsa/sherpa-onnx
+  Copyright: k2-fsa and contributors
+  License: Apache License 2.0
+  Version: 1.13.8 (android-static-link-onnxruntime build)
+  Files: libsherpa-onnx-jni.so (all ABIs)
+
+onnxruntime
+  Project: https://github.com/microsoft/onnxruntime
+  Copyright: Microsoft Corporation and contributors
+  License: MIT License
+  Files: libonnxruntime.so (x86 only; other ABIs link it statically)
+
+The Kotlin bindings under com.k2fsa.sherpa.onnx in the main app are vendored from
+sherpa-onnx's kotlin-api and stay under the same Apache License 2.0.

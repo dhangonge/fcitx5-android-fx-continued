@@ -229,7 +229,7 @@ object DataManager {
         return packageName == normalized || packageName.startsWith("$normalized.")
     }
 
-    private fun hasSameSignature(packageName: String): Boolean {
+    fun hasSameSignature(packageName: String): Boolean {
         val pm = appContext.packageManager
         return try {
             val mainSig = pm.getPackageInfo(

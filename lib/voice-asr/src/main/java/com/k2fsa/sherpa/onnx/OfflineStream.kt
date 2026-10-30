@@ -1,8 +1,11 @@
 /*
  * Vendored from k2-fsa/sherpa-onnx (sherpa-onnx/kotlin-api/OfflineStream.kt, v1.13.8), Apache-2.0.
- * Kept byte-for-byte apart from this header so upstream updates stay reviewable.
+ * Kept close to upstream apart from this header and the library load in the companion
+ * object, so upstream updates stay reviewable.
  */
 package com.k2fsa.sherpa.onnx
+
+import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 
 class OfflineStream(var ptr: Long) {
     init {
@@ -40,7 +43,9 @@ class OfflineStream(var ptr: Long) {
 
     companion object {
         init {
-            System.loadLibrary("sherpa-onnx-jni")
+            // Patched: the library ships in the voice-engine plugin APK, which the
+            // host loads by absolute path; see EngineLibrary.
+            EngineLibrary.load()
         }
     }
 }

@@ -40,6 +40,10 @@ include(":plugin:jyutping")
 include(":plugin:thai")
 include(":plugin:text-editor")
 include(":plugin:text-editor:language-textmate")
+include(":plugin:voice-engine")
+// :plugin:voice-engine carries only the sherpa-onnx JNI library: the app loads it from that
+// package's lib directory and still runs it inside the IME process, so the ~9 MB engine does not
+// sit in the app for users who never dictate. See EngineLibrary.
 // :plugin:voice-asr is intentionally not built: the same engine now runs in-process inside the
 // app (:lib:voice-asr, see VoiceAsrProviders), and a separate process is exactly what ROM freezers
 // kill. The sources stay as the reference implementation of the IVoiceInputProvider AIDL contract.
