@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.input.bar.ui
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.transition.Slide
 import android.transition.TransitionManager
@@ -34,6 +35,7 @@ import org.fcitx.fcitx5.android.input.config.ConfigurableButton
 import org.fcitx.fcitx5.android.data.theme.IconThemeManager
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
+import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.after
@@ -141,13 +143,19 @@ class IdleUi(
     private val voiceCancelButton: TextView = textView {
         text = ctx.getString(R.string.voice_cancel)
         textSize = 13f
-        setTextColor(theme.keyTextColor)
         isSingleLine = true
         gravity = gravityCenter
         setPadding(dp(10), 0, dp(10), 0)
         // No fill: the bar is a status line, and a key-coloured block next to the
         // waveform reads as a key that belongs to the keyboard rather than text.
+        // The press shows as a ripple plus a dimmed label.
         background = borderlessRippleDrawable(theme.keyPressHighlightColor)
+        setTextColor(
+            ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_pressed), intArrayOf()),
+                intArrayOf(theme.keyTextColor.alpha(0.55f), theme.keyTextColor)
+            )
+        )
         setOnClickListener { view ->
             InputFeedbacks.hapticFeedback(view)
             // Hide right away: the provider still has to wind down, and a status
