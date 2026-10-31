@@ -5,10 +5,7 @@
 package org.fcitx.fcitx5.android.input.bar.ui
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.RippleDrawable
 import android.transition.Slide
 import android.transition.TransitionManager
 import android.transition.TransitionSet
@@ -37,6 +34,7 @@ import org.fcitx.fcitx5.android.input.config.ConfigurableButton
 import org.fcitx.fcitx5.android.data.theme.IconThemeManager
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
+import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.after
 import splitties.views.dsl.constraintlayout.before
@@ -146,19 +144,10 @@ class IdleUi(
         setTextColor(theme.keyTextColor)
         isSingleLine = true
         gravity = gravityCenter
-        setPadding(dp(12), 0, dp(12), 0)
-        // Reads as a small key on the bar: key-coloured pill under a clipped ripple,
-        // so the tap is visible even when the theme's highlight colour is faint.
-        background = RippleDrawable(
-            ColorStateList.valueOf(theme.keyPressHighlightColor),
-            GradientDrawable().apply {
-                cornerRadius = dp(4).toFloat()
-                setColor(theme.keyBackgroundColor)
-            },
-            GradientDrawable().apply {
-                cornerRadius = dp(4).toFloat()
-            }
-        )
+        setPadding(dp(10), 0, dp(10), 0)
+        // No fill: the bar is a status line, and a key-coloured block next to the
+        // waveform reads as a key that belongs to the keyboard rather than text.
+        background = borderlessRippleDrawable(theme.keyPressHighlightColor)
         setOnClickListener { view ->
             InputFeedbacks.hapticFeedback(view)
             // Hide right away: the provider still has to wind down, and a status
