@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.input.config.ConfigurableButton
 import org.fcitx.fcitx5.android.data.theme.IconThemeManager
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
+import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.after
 import splitties.views.dsl.constraintlayout.before
@@ -50,6 +51,7 @@ import splitties.views.dsl.core.frameLayout
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.textView
 import splitties.views.dsl.core.wrapContent
+import splitties.views.gravityCenter
 import splitties.views.imageResource
 import timber.log.Timber
 import kotlin.math.roundToInt
@@ -132,6 +134,25 @@ class IdleUi(
     private var voiceWavePhase = 0
     private var lastVoiceLevelAt = 0L
 
+    /** Invoked when the user taps the cancel button shown while voice input runs. */
+    var onVoiceCancel: (() -> Unit)? = null
+
+    private val voiceCancelButton: TextView = textView {
+        text = ctx.getString(R.string.voice_cancel)
+        textSize = 13f
+        setTextColor(theme.keyTextColor)
+        isSingleLine = true
+        gravity = gravityCenter
+        setPadding(dp(10), 0, dp(10), 0)
+        background = borderlessRippleDrawable(theme.keyPressHighlightColor)
+        setOnClickListener {
+            // Hide right away: the provider still has to wind down, and a status
+            // bar that sits there after a cancel reads as "it did not work".
+            hideVoiceStatus()
+            onVoiceCancel?.invoke()
+        }
+    }
+
     private val voiceStatusBar = horizontalLayout {
         gravity = Gravity.CENTER_VERTICAL
         visibility = View.GONE
@@ -142,6 +163,9 @@ class IdleUi(
                 marginStart = dp(3)
             })
         }
+        add(voiceCancelButton, LinearLayout.LayoutParams(wrapContent, matchParent).apply {
+            marginStart = dp(6)
+        })
     }
 
     private val voiceWaveTicker = object : Runnable {

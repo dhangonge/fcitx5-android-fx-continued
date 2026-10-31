@@ -747,6 +747,7 @@
     <string name="voice_status_recognizing">Reconociendo</string>
     <string name="voice_status_listening">Escuchando</string>
     <string name="voice_status_committed">Hecho</string>
+    <string name="voice_cancel">Cancelar</string>
 
     <!-- Voice input error toasts -->
     <string name="voice_error_no_permission">Permiso RECORD_AUDIO no concedido</string>

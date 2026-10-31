@@ -234,7 +234,10 @@ class CommonKeyActionListener :
                 }
                 is VoiceInputHoldEnd -> {
                     if (voiceHoldActive) {
-                        switchToVoiceInput()
+                        // Only finish what is still running: the session may have
+                        // been cancelled from the bar or ended on its own, and
+                        // toggling then would start a fresh one on key release.
+                        if (VoiceInputProviderManager.isActive()) switchToVoiceInput()
                         voiceHoldActive = false
                     }
                 }

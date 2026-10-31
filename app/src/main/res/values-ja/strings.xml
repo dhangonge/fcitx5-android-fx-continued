@@ -745,6 +745,7 @@
     <string name="voice_status_recognizing">認識中</string>
     <string name="voice_status_listening">聞取中</string>
     <string name="voice_status_committed">完了</string>
+    <string name="voice_cancel">キャンセル</string>
 
     <!-- Voice input error toasts -->
     <string name="voice_error_no_permission">RECORD_AUDIO権限が付与されていません</string>

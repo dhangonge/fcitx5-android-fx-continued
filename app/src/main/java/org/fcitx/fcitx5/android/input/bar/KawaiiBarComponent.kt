@@ -773,6 +773,13 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             idleUi.hideVoiceStatus()
             android.widget.Toast.makeText(service, msg, android.widget.Toast.LENGTH_SHORT).show()
         }
+        // Cancel throws away what has not been committed yet: the streaming engine
+        // drops its pending partial, the whole-utterance engine drops the recording.
+        // Already committed segments stay, they are ordinary text in the editor now.
+        idleUi.onVoiceCancel = {
+            Log.i(VOICE_INPUT_TAG, "voice cancel requested, active=${VoiceInputProviderManager.isActive()}")
+            VoiceInputProviderManager.stop(service)
+        }
         IconThemeManager.addOnChangedListener(onIconThemeChangeListener)
     }
 
