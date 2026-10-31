@@ -30,6 +30,7 @@ import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.loadThumbnailBitmap
 import org.fcitx.fcitx5.android.utils.resolveClipboardUriFileName
 import splitties.resources.styledColor
+import timber.log.Timber
 import kotlin.math.min
 
 abstract class ClipboardAdapter(
@@ -195,15 +196,25 @@ abstract class ClipboardAdapter(
                 }
             }
             root.setOnLongClickListener {
-                // For all entries, long click shows menu
-                showEntryMenu(
-                    anchor = root,
-                    entry = entry,
-                    linkUri = linkUri,
-                    searchQuery = searchQuery,
-                    dialNumber = dialNumber,
-                    splittableText = splittableText
-                )
+                // For all entries, long click shows menu. The touch that gets here is
+                // delivered from a coroutine inside CustomGestureView, so anything thrown
+                // on the way (a popup the window manager refuses, a dead anchor window in
+                // some host apps) takes the whole input method down instead of just
+                // closing the menu. Swallow it and keep the keyboard alive.
+                runCatching {
+                    showEntryMenu(
+                        anchor = root,
+                        entry = entry,
+                        linkUri = linkUri,
+                        searchQuery = searchQuery,
+                        dialNumber = dialNumber,
+                        splittableText = splittableText
+                    )
+                }.onFailure {
+                    Timber.w(it, "failed to show the menu for a clipboard entry")
+                    popupMenu?.dismiss()
+                    popupMenu = null
+                }
                 true
             }
         }
