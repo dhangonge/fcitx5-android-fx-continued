@@ -11,6 +11,7 @@ import android.util.Log
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
 import org.fcitx.fcitx5.android.common.ipc.VoiceInputIpc
+import org.fcitx.fcitx5.android.lib.voice_asr.R
 import org.fcitx.fcitx5.android.voice.engine.BatchEngine
 import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
@@ -168,13 +169,17 @@ class BatchProvider(
                 fail(
                     cb,
                     VoiceInputIpc.ErrorCodes.NOT_AVAILABLE,
-                    "Voice engine not installed"
+                    context.getString(R.string.provider_error_engine_missing)
                 )
                 return
             }
             val active = ensureEngine()
             if (active == null) {
-                fail(cb, VoiceInputIpc.ErrorCodes.NOT_AVAILABLE, "No offline model installed")
+                fail(
+                    cb,
+                    VoiceInputIpc.ErrorCodes.NOT_AVAILABLE,
+                    context.getString(R.string.provider_error_batch_missing)
+                )
                 return
             }
             cb.onReady()

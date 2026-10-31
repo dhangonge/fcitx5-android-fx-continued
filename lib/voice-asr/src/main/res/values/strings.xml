@@ -36,4 +36,7 @@
     <string name="provider_streaming">Penguin Voice built-in · streaming</string>
     <string name="provider_batch">Penguin Voice built-in · offline</string>
     <string name="engine_missing_hint">Voice engine not installed: the recognition library is a separate APK (Voice Engine) and is required before a model can be used. Install it, then reopen the keyboard. Models already downloaded are kept.</string>
+    <string name="provider_error_engine_missing">Voice engine not installed — install the Voice Engine APK</string>
+    <string name="provider_error_streaming_missing">No streaming model installed</string>
+    <string name="provider_error_batch_missing">No offline model installed</string>
 </resources>

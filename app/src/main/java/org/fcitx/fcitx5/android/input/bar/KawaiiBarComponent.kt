@@ -55,6 +55,8 @@ import org.fcitx.fcitx5.android.input.bar.ui.CandidateUi
 import org.fcitx.fcitx5.android.input.bar.ui.IdleUi
 import org.fcitx.fcitx5.android.input.bar.ui.TitleUi
 import org.fcitx.fcitx5.android.input.voice.VoiceInputProviderManager
+import org.fcitx.fcitx5.android.input.voice.VoiceInputProviderRegistry
+import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.input.config.ButtonIconFile
 import org.fcitx.fcitx5.android.input.config.ButtonsLayoutConfig
 import org.fcitx.fcitx5.android.input.config.ConfigProviders
@@ -798,8 +800,13 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private fun refreshHideKeyboardVoiceButton() {
         voiceInputSubtype = InputMethodUtil.findVoiceSubtype(preferredVoiceInput)
+        // The built-in engines run in this process, but their recognition library
+        // comes from the engine APK. Without it the button can only report an
+        // error, so it is hidden instead.
+        val engineReady = EngineLibrary.isAvailable(service)
         val hasPluginProvider = VoiceInputProviderManager.isProviderId(preferredVoiceInput) &&
-            VoiceInputProviderManager.hasProvider(preferredVoiceInput, service)
+            VoiceInputProviderManager.hasProvider(preferredVoiceInput, service) &&
+            (VoiceInputProviderRegistry.get(preferredVoiceInput) == null || engineReady)
         val shouldShowVoiceInput =
             showVoiceInputButton &&
                 (voiceInputSubtype != null || hasPluginProvider) &&
@@ -808,7 +815,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             VOICE_INPUT_TAG,
             "refreshVoiceButton showVoice=$showVoiceInputButton preferred=$preferredVoiceInput " +
                 "subtype=${voiceInputSubtype != null} plugin=$hasPluginProvider " +
-                ""
+                "engine=$engineReady"
         )
         val hideKeyboardOrVoiceCallback = if (shouldShowVoiceInput) {
             switchToVoiceInputCallback
