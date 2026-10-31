@@ -19,7 +19,7 @@ object Versions {
     // NOTE: increase this value to bump version code. It is a monotonic counter of its
     // own: a published build must never reuse a version code, however the version name
     // moves.
-    const val baseVersionCode = 13
+    const val baseVersionCode = 14
 
     // Release version name is `<upstream release>-<codename>-<fork release counter>`, e.g.
     // `0.1.3-Vega-1`. The build takes the real value from `git describe --tags --long`
@@ -31,7 +31,7 @@ object Versions {
     // because the in-app update check compares numbers only.
     const val upstreamVersionName = "0.1.3"
     const val releaseCodename = "Vega"
-    const val forkVersionName = "1"
+    const val forkVersionName = "2"
     const val baseVersionName = "$upstreamVersionName-$releaseCodename-$forkVersionName"
 
     val supportedABIs = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
