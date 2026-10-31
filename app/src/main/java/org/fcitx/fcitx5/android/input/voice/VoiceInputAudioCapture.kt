@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import timber.log.Timber
@@ -65,20 +64,20 @@ class VoiceInputAudioCapture(
         val chunkSamples = config.sampleRate / 10
         val chunkBytes = chunkSamples * config.bitsPerSample / 8 * config.channels
         val bufferBytes = maxOf(minBuf * 2, chunkBytes * 4)
-        val lowLatency = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-        val builder = AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.MIC)
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(config.sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferBytes)
-        if (lowLatency) builder.setPerformanceMode(AudioRecord.PERFORMANCE_MODE_LOW_LATENCY)
+        // AudioRecord has no performance-mode knob (that is MediaRecorder); the
+        // explicit buffer size is the whole point of using the builder here.
         val rec = try {
-            builder.build()
+            AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.MIC)
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(config.sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferBytes)
+                .build()
         } catch (e: Throwable) {
             onError(context.getString(org.fcitx.fcitx5.android.R.string.voice_error_audio_construct, e.message))
             return false
@@ -130,7 +129,7 @@ class VoiceInputAudioCapture(
         }
         Timber.i(
             "VoiceInputAudioCapture started: config=$config minBuf=$minBuf " +
-                "bufferBytes=$bufferBytes chunkBytes=$chunkBytes lowLatency=$lowLatency"
+                "bufferBytes=$bufferBytes chunkBytes=$chunkBytes"
         )
         return true
     }
