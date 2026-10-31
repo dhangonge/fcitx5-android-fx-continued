@@ -83,7 +83,9 @@ add_custom_target(copy-fcitx5-modules
 
 # install prebuilt assets
 install(FILES "${PREBUILT_DIR}/chinese-addons-data/pinyin/chaizi.dict" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/pinyin" COMPONENT prebuilt-assets)
-install(DIRECTORY "${PREBUILT_DIR}/chinese-addons-data/pinyinhelper" DESTINATION "${FCITX_INSTALL_PKGDATADIR}" COMPONENT prebuilt-assets)
+// the pinyinhelper stroke/table data and the opencc dictionary are shipped by the
+// :plugin:extra-data plugin instead; both consumers treat a missing file as
+// "feature unavailable" rather than an error
 install(DIRECTORY "${PREBUILT_DIR}/libime/table" DESTINATION "${FCITX_INSTALL_PKGDATADIR}" COMPONENT prebuilt-assets)
 install(DIRECTORY "${PREBUILT_DIR}/libime/data/" DESTINATION "${FCITX_INSTALL_DATADIR}/libime" COMPONENT prebuilt-assets)
-install(DIRECTORY "${PREBUILT_DIR}/opencc/data/" DESTINATION "${FCITX_INSTALL_DATADIR}/opencc" COMPONENT prebuilt-assets)
+

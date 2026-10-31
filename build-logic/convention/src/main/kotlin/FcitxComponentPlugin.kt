@@ -51,7 +51,8 @@ class FcitxComponentPlugin : Plugin<Project> {
                     dependsOn(installTask)
                     doLast {
                         ext.excludeFiles.forEach {
-                            project.assetsDir.resolve(it).delete()
+                            // a directory entry means "ship the whole subtree from a plugin"
+                            project.assetsDir.resolve(it).deleteRecursively()
                         }
                     }
                 }

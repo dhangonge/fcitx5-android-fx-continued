@@ -34,6 +34,14 @@ val copyExtraData = tasks.register<Copy>("copyExtraData") {
     from(rootProject.file("lib/fcitx5/src/main/cpp/fcitx5/src/modules/unicode/charselectdata")) {
         into("usr/share/fcitx5/unicode")
     }
+    // pinyinhelper's stroke-order and pinyin tables (笔画 and 拆字 lookups)
+    from(rootProject.file("lib/fcitx5/src/main/cpp/prebuilt/chinese-addons-data/pinyinhelper")) {
+        into("usr/share/fcitx5/pinyinhelper")
+    }
+    // opencc character and phrase dictionaries for simplified/traditional conversion
+    from(rootProject.file("lib/fcitx5/src/main/cpp/prebuilt/opencc/data")) {
+        into("usr/share/opencc")
+    }
     into(layout.projectDirectory.dir("src/main/assets"))
 }
 

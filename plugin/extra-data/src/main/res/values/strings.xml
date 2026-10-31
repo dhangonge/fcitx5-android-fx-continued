@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name_debug">Fcitx5 (Extra Data | Debug)</string>
     <string name="app_name_release">Fcitx5 (Extra Data)</string>
-    <string name="description">Unicode character data and English spell dictionary for Fcitx5</string>
+    <string name="description">Unicode, stroke and OpenCC data plus the English spell dictionary for Fcitx5</string>
 </resources>

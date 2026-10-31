@@ -219,7 +219,10 @@ fcitxComponent {
         "usr/share/fcitx5/table/zrm.main.dict",
         // unicode character data is shipped by the :plugin:extra-data plugin; the
         // unicode addon degrades to "no data" without it rather than failing to load
-        "usr/share/fcitx5/unicode/charselectdata"
+        "usr/share/fcitx5/unicode/charselectdata",
+        // same for the pinyinhelper stroke/table data and the opencc dictionary
+        "usr/share/fcitx5/pinyinhelper",
+        "usr/share/opencc"
     )
     installPrebuiltAssets = true
 }
