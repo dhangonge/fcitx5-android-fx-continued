@@ -7,8 +7,6 @@ package org.fcitx.fcitx5.android.input.keyboard
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import org.fcitx.fcitx5.android.core.CapabilityFlag
-import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -33,11 +31,8 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyAction.ShowInputMethodPickerAc
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.SpaceLongPressAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.SymAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.UnicodeAction
-import org.fcitx.fcitx5.android.input.keyboard.KeyAction.VoiceInputHoldEnd
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
-import org.fcitx.fcitx5.android.input.voice.VoiceInputProviderManager
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
-import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.switchToNextIME
 import org.mechdancer.dependency.Dependent
 import org.mechdancer.dependency.UniqueComponent
@@ -65,11 +60,8 @@ class CommonKeyActionListener :
 
     private val spaceKeyLongPressBehavior by kbdPrefs.spaceKeyLongPressBehavior
     private val langSwitchKeyBehavior by kbdPrefs.langSwitchKeyBehavior
-    private val preferredVoiceInput by kbdPrefs.preferredVoiceInput
 
     private var backspaceSwipeState = Stopped
-
-    private var voiceHoldActive = false
 
     // there should be a new fcitx API for this
     private suspend fun FcitxAPI.commitAndReset() {
@@ -94,38 +86,6 @@ class CommonKeyActionListener :
                 service.showDialog(InputMethodPickerDialog.build(it, service, context))
             }
         }
-    }
-
-    private fun switchToVoiceInput(): Boolean {
-        val isPasswordField = service.currentInputEditorInfo?.let {
-            CapabilityFlags.fromEditorInfo(it).has(CapabilityFlag.Password)
-        } ?: false
-        if (isPasswordField) return false
-        if (VoiceInputProviderManager.isProviderId(preferredVoiceInput)) {
-            return VoiceInputProviderManager.toggle(
-                service = service,
-                id = preferredVoiceInput,
-                onReady = {
-                    VoiceInputProviderManager.voiceReadyCallback?.invoke()
-                },
-                onPartialResult = {},
-                onError = { msg ->
-                    VoiceInputProviderManager.voiceErrorCallback?.invoke(msg)
-                },
-                onLevel = { rms ->
-                    VoiceInputProviderManager.voiceLevelCallback?.invoke(rms)
-                },
-                onFinished = {
-                    VoiceInputProviderManager.voiceFinishedCallback?.invoke()
-                },
-                onStatus = { status ->
-                    VoiceInputProviderManager.voiceStatusCallback?.invoke(status)
-                },
-            )
-        }
-        val (id, subtype) = InputMethodUtil.findVoiceSubtype(preferredVoiceInput) ?: return false
-        InputMethodUtil.switchInputMethod(service, id, subtype)
-        return true
     }
 
     val listener by lazy {
@@ -223,22 +183,6 @@ class CommonKeyActionListener :
                             toggleIme()
                         }
                         SpaceLongPressBehavior.ShowPicker -> showInputMethodPicker()
-                        SpaceLongPressBehavior.VoiceInput -> { switchToVoiceInput() }
-                        SpaceLongPressBehavior.VoiceInputHold -> {
-                            val started = switchToVoiceInput()
-                            if (VoiceInputProviderManager.isProviderId(preferredVoiceInput)) {
-                                voiceHoldActive = started
-                            }
-                        }
-                    }
-                }
-                is VoiceInputHoldEnd -> {
-                    if (voiceHoldActive) {
-                        // Only finish what is still running: the session may have
-                        // been cancelled from the bar or ended on its own, and
-                        // toggling then would start a fresh one on key release.
-                        if (VoiceInputProviderManager.isActive()) switchToVoiceInput()
-                        voiceHoldActive = false
                     }
                 }
                 else -> {}

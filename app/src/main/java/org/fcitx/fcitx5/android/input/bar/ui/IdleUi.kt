@@ -5,7 +5,10 @@
 package org.fcitx.fcitx5.android.input.bar.ui
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.transition.Slide
 import android.transition.TransitionManager
 import android.transition.TransitionSet
@@ -20,6 +23,7 @@ import android.widget.TextView
 import android.widget.ViewAnimator
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
@@ -33,7 +37,6 @@ import org.fcitx.fcitx5.android.input.config.ConfigurableButton
 import org.fcitx.fcitx5.android.data.theme.IconThemeManager
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
-import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.after
 import splitties.views.dsl.constraintlayout.before
@@ -143,9 +146,21 @@ class IdleUi(
         setTextColor(theme.keyTextColor)
         isSingleLine = true
         gravity = gravityCenter
-        setPadding(dp(10), 0, dp(10), 0)
-        background = borderlessRippleDrawable(theme.keyPressHighlightColor)
-        setOnClickListener {
+        setPadding(dp(12), 0, dp(12), 0)
+        // Reads as a small key on the bar: key-coloured pill under a clipped ripple,
+        // so the tap is visible even when the theme's highlight colour is faint.
+        background = RippleDrawable(
+            ColorStateList.valueOf(theme.keyPressHighlightColor),
+            GradientDrawable().apply {
+                cornerRadius = dp(4).toFloat()
+                setColor(theme.keyBackgroundColor)
+            },
+            GradientDrawable().apply {
+                cornerRadius = dp(4).toFloat()
+            }
+        )
+        setOnClickListener { view ->
+            InputFeedbacks.hapticFeedback(view)
             // Hide right away: the provider still has to wind down, and a status
             // bar that sits there after a cancel reads as "it did not work".
             hideVoiceStatus()

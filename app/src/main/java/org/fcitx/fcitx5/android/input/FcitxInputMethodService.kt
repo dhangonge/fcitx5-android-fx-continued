@@ -84,7 +84,6 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
-import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.TextKeyboard
 import org.fcitx.fcitx5.android.input.voice.VoiceInputProviderManager
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
@@ -1567,11 +1566,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun ensurePreferredVoiceInputProviderAvailable() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) return
         val keyboardPrefs = AppPrefs.getInstance().keyboard
-        val voiceInputReachable =
-            keyboardPrefs.showVoiceInputButton.getValue() ||
-                keyboardPrefs.spaceKeyLongPressBehavior.getValue() == SpaceLongPressBehavior.VoiceInput ||
-                keyboardPrefs.spaceKeyLongPressBehavior.getValue() == SpaceLongPressBehavior.VoiceInputHold
-        if (!voiceInputReachable) return
+        if (!keyboardPrefs.showVoiceInputButton.getValue()) return
         val preferredVoiceInput = keyboardPrefs.preferredVoiceInput.getValue()
         VoiceInputProviderManager.ensureProviderAvailable(this, preferredVoiceInput)
     }
