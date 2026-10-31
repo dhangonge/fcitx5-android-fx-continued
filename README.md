@@ -30,7 +30,8 @@ fcitx5-android/fcitx5-android   原版（上游官方）
   不会被墓碑机制冻结）；模型在设置里下载或导入，见下文「语音输入」
 - 仍然保留 ASR AIDL 桥接（`IVoiceInputProvider` / `IVoiceInputCallback`），第三方插件 APK
   可以把识别放在自己的进程里，详见 [ASR_VOICE_INPUT_AIDL_INTEGRATION.md](ASR_VOICE_INPUT_AIDL_INTEGRATION.md)
-- 额外汇总插件：`pinyin-lm`、`text-editor`（正则、Tab 视图）、`table-data`
+- 额外汇总插件：`pinyin-lm`、`text-editor`（正则、Tab 视图）、`table-data`、`extra-data`
+  （Unicode 字符数据与英文拼写词典，不装则这两项功能无数据，键盘本身不受影响）
 - Kawaii Bar / 浮动模式、数字键盘布局覆盖、BACK 层切换
 
 ## 构建
