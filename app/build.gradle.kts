@@ -216,7 +216,10 @@ fcitxComponent {
         "usr/share/fcitx5/table/db.main.dict",
         "usr/share/fcitx5/table/wbpy.main.dict",
         "usr/share/fcitx5/table/wbx.main.dict",
-        "usr/share/fcitx5/table/zrm.main.dict"
+        "usr/share/fcitx5/table/zrm.main.dict",
+        // unicode character data is shipped by the :plugin:extra-data plugin; the
+        // unicode addon degrades to "no data" without it rather than failing to load
+        "usr/share/fcitx5/unicode/charselectdata"
     )
     installPrebuiltAssets = true
 }

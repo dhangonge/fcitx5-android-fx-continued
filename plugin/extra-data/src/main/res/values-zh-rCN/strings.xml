@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">小企鹅附加数据插件（调试）</string>
+    <string name="app_name_release">小企鹅附加数据插件</string>
+    <string name="description">小企鹅（Fcitx5）Unicode 字符数据与英文拼写词典</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">小企鵝附加資料外掛（除錯）</string>
+    <string name="app_name_release">小企鵝附加資料外掛</string>
+    <string name="description">小企鵝（Fcitx5）Unicode 字元資料與英文拼寫詞典</string>
+</resources>
