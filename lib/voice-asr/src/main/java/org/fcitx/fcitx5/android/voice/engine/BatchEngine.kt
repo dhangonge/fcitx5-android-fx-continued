@@ -31,9 +31,22 @@ class BatchEngine(model: BatchModel, numThreads: Int = 2) : AutoCloseable {
     fun transcribe(samples: FloatArray, sampleRate: Int): String {
         val speech = Pcm.trimSilence(samples, sampleRate)
         if (speech.size < sampleRate / 1000 * MIN_SPEECH_MS) return ""
+        return decode(speech, sampleRate)
+    }
+
+    /**
+     * Decodes a short silent buffer once so the first real utterance does not pay
+     * for the runtime's one-time setup. The (usually hallucinated) text is
+     * discarded.
+     */
+    fun warmUp(sampleRate: Int = StreamingModel.SAMPLE_RATE) {
+        runCatching { decode(FloatArray(sampleRate * WARMUP_MS / 1000), sampleRate) }
+    }
+
+    private fun decode(samples: FloatArray, sampleRate: Int): String {
         val stream = recognizer.createStream()
         try {
-            stream.acceptWaveform(speech, sampleRate)
+            stream.acceptWaveform(samples, sampleRate)
             recognizer.decode(stream)
             return recognizer.getResult(stream).text.trim()
         } finally {
@@ -46,6 +59,7 @@ class BatchEngine(model: BatchModel, numThreads: Int = 2) : AutoCloseable {
     private companion object {
         const val FEATURE_DIM = 80
         const val MIN_SPEECH_MS = 200
+        const val WARMUP_MS = 500
 
         fun configOf(model: BatchModel, numThreads: Int): OfflineRecognizerConfig {
             val modelConfig = when (model.family) {

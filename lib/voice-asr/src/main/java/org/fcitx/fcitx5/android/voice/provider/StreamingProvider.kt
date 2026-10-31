@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.voice.provider
 import android.content.Context
 import android.os.Bundle
 import android.os.Parcel
+import android.os.Process
 import android.util.Log
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputCallback
 import org.fcitx.fcitx5.android.common.ipc.IVoiceInputProvider
@@ -16,8 +17,10 @@ import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
 import org.fcitx.fcitx5.android.voice.engine.Pcm
 import org.fcitx.fcitx5.android.voice.engine.StreamingEngine
-import java.util.concurrent.ExecutorService
+import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -45,11 +48,20 @@ class StreamingProvider(
 
     private val context = context.applicationContext
 
-    private var worker: ExecutorService? = null
+    private var worker: ScheduledExecutorService? = null
     private val workerLock = Any()
+
+    /** Pending idle unload; armed when a session ends, cancelled when one starts. */
+    private var idleTimer: ScheduledFuture<*>? = null
 
     /** Audio blocks handed to the worker and not decoded yet. */
     private val queuedBlocks = AtomicInteger(0)
+
+    /** Per-session counters, logged once at the end so perf can be compared. */
+    private var blocksIn = 0
+    private val blocksDropped = AtomicInteger(0)
+    private var decodeNanos = 0L
+    private var audioMs = 0L
 
     @Volatile
     private var destroyed = false
@@ -126,7 +138,10 @@ class StreamingProvider(
         // A slow decoder would otherwise grow the queue without bound and the
         // transcript would trail the speaker by seconds. Dropping whole blocks
         // keeps the recognizer near realtime.
-        if (queuedBlocks.get() >= MAX_QUEUED_BLOCKS) return
+        if (queuedBlocks.get() >= MAX_QUEUED_BLOCKS) {
+            blocksDropped.incrementAndGet()
+            return
+        }
         val copy = pcm.copyOfRange(offset, offset + len)
         queuedBlocks.incrementAndGet()
         submit { feedOnWorker(copy) }
@@ -151,16 +166,26 @@ class StreamingProvider(
         submit { closeEngine() }
         val executor = synchronized(workerLock) {
             destroyed = true
+            idleTimer?.cancel(false)
+            idleTimer = null
             worker.also { worker = null }
         }
         executor?.shutdown()
         executor?.let { runCatching { it.awaitTermination(2, TimeUnit.SECONDS) } }
     }
 
-    private fun executor(): ExecutorService? = synchronized(workerLock) {
+    private fun executor(): ScheduledExecutorService? = synchronized(workerLock) {
         if (destroyed) return null
-        worker ?: Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "voice-asr").apply { isDaemon = true }
+        worker ?: Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(
+                {
+                    // Decode blocks are tiny; a raised priority keeps them from
+                    // queueing behind UI work and skipping an audio block.
+                    runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO) }
+                    runnable.run()
+                },
+                "voice-asr",
+            ).apply { isDaemon = true }
         }.also { worker = it }
     }
 
@@ -174,7 +199,9 @@ class StreamingProvider(
     private fun preloadEngine() {
         if (engine != null) return
         submit {
-            runCatching { ensureEngine() }.onFailure { Log.w(TAG, "preload failed", it) }
+            runCatching { ensureEngine() }
+                .onSuccess { armIdleUnload() }
+                .onFailure { Log.w(TAG, "preload failed", it) }
         }
     }
 
@@ -186,6 +213,11 @@ class StreamingProvider(
         callback = cb
         sessionActive = true
         lastPartial = ""
+        blocksIn = 0
+        blocksDropped.set(0)
+        decodeNanos = 0
+        audioMs = 0
+        cancelIdleUnload()
         try {
             if (!EngineLibrary.isAvailable(context)) {
                 fail(
@@ -221,8 +253,42 @@ class StreamingProvider(
         return StreamingEngine(model, ModelStore.numThreads(context)).also {
             engine = it
             engineModelId = model.id
-            Log.i(TAG, "Model loaded in ${System.currentTimeMillis() - started} ms")
+            val warmUpStarted = System.currentTimeMillis()
+            it.warmUp()
+            Log.i(
+                TAG,
+                "Model ${model.id} loaded in ${System.currentTimeMillis() - started} ms " +
+                    "(warm-up ${System.currentTimeMillis() - warmUpStarted} ms, " +
+                    "${ModelStore.numThreads(context)} threads)"
+            )
         }
+    }
+
+    /**
+     * Drops the model once voice input has been idle for a while. Loading takes
+     * 0.3 s for the 24 MB streaming model and seconds for the big ones, so the
+     * timer is long enough that a normal conversation never pays it twice, and
+     * short enough that the process does not sit on a few hundred megabytes.
+     */
+    private fun armIdleUnload() {
+        if (engine == null) return
+        val scheduler = worker ?: return
+        idleTimer?.cancel(false)
+        idleTimer = scheduler.schedule(
+            {
+                if (!sessionActive && engine != null) {
+                    Log.i(TAG, "Unloading model ${engineModelId} after ${IDLE_UNLOAD_MS / 1000} s idle")
+                    closeEngine()
+                }
+            },
+            IDLE_UNLOAD_MS,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun cancelIdleUnload() {
+        idleTimer?.cancel(false)
+        idleTimer = null
     }
 
     private fun closeEngine() {
@@ -240,7 +306,11 @@ class StreamingProvider(
             val samples = Pcm.toFloatSamples(pcm, 0, pcm.size)
             if (samples.isEmpty()) return
             cb.onVolumeLevel(Pcm.rmsOf(samples))
+            val decodeStarted = System.nanoTime()
             val text = active.accept(samples, sampleRate)
+            decodeNanos += System.nanoTime() - decodeStarted
+            blocksIn++
+            audioMs += samples.size * 1000L / sampleRate
             if (text.isNotBlank() && text != lastPartial) {
                 lastPartial = text
                 cb.onPartialResult(text)
@@ -284,7 +354,22 @@ class StreamingProvider(
         queuedBlocks.set(0)
         closeSession()
         callback = null
-        if (wasActive) cb?.onSessionEnded()
+        if (wasActive) {
+            logSessionStats()
+            armIdleUnload()
+            cb?.onSessionEnded()
+        }
+    }
+
+    private fun logSessionStats() {
+        if (blocksIn == 0) return
+        val decodeMs = decodeNanos / 1_000_000
+        val rtf = if (audioMs > 0) decodeMs.toDouble() / audioMs else 0.0
+        Log.i(
+            TAG,
+            "session: audio=${audioMs} ms blocks=$blocksIn dropped=${blocksDropped.get()} " +
+                "decode=${decodeMs} ms rtf=${String.format(Locale.US, "%.2f", rtf)}"
+        )
     }
 
     private fun fail(cb: IVoiceInputCallback, code: Int, message: String) {
@@ -294,6 +379,7 @@ class StreamingProvider(
         queuedBlocks.set(0)
         closeSession()
         callback = null
+        armIdleUnload()
         runCatching { cb.onError(code, message) }
         if (wasActive) runCatching { cb.onSessionEnded() }
     }
@@ -318,5 +404,11 @@ class StreamingProvider(
 
         /** 100 ms per block from the host, so this caps the backlog at two seconds. */
         const val MAX_QUEUED_BLOCKS = 20
+
+        /** Idle time after which the loaded model is released again. Longer than
+         *  the batch one: the streaming model loads in about a second, but the IME
+         *  preloads it whenever the keyboard shows, so a short window would reload
+         *  it on nearly every appearance. */
+        const val IDLE_UNLOAD_MS = 10 * 60 * 1000L
     }
 }

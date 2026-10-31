@@ -235,8 +235,17 @@ object VoiceInputProviderManager {
      */
     fun ensureProviderAvailable(service: FcitxInputMethodService, id: String) {
         if (!isProviderId(id)) return
-        // In-process providers are always there; nothing to wake up.
-        if (VoiceInputProviderRegistry.get(id) != null) return
+        // In-process providers need no binding. They still load a model on first
+        // use, so hand them the same head start: isAvailable() kicks the load off
+        // on their own worker thread and returns immediately.
+        VoiceInputProviderRegistry.get(id)?.provider?.let { provider ->
+            if (isActive()) return
+            service.lifecycleScope.launch(Dispatchers.IO) {
+                runCatching { provider.isAvailable() }
+                    .onFailure { Timber.w(it, "in-process provider prewarm failed") }
+            }
+            return
+        }
         if (isActive()) return
         val now = SystemClock.elapsedRealtime()
         if (now - keepAliveLastAttemptElapsed < KEEPALIVE_MIN_INTERVAL_MS) return

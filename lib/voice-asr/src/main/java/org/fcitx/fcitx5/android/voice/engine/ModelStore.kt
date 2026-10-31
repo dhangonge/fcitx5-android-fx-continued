@@ -21,7 +21,6 @@ object ModelStore {
     private const val PREFS = "voice_asr"
     private const val KEY_ACTIVE_STREAMING = "active_model"
     private const val KEY_ACTIVE_BATCH = "active_model_batch"
-    private const val DEFAULT_THREADS = 2
 
     fun modelsDir(context: Context): File = File(context.filesDir, MODELS_DIR)
 
@@ -52,7 +51,15 @@ object ModelStore {
         putString(context, KEY_ACTIVE_BATCH, id)
 
     fun numThreads(context: Context): Int =
-        prefs(context).getInt("num_threads", DEFAULT_THREADS).coerceIn(1, 8)
+        prefs(context).getInt("num_threads", defaultThreads()).coerceIn(1, 8)
+
+    /**
+     * Half the cores, clamped to 2..4: two threads already keep the 14M streaming
+     * model ahead of realtime on every phone we support, and past four the
+     * hand-off cost eats the win on a big.LITTLE cluster.
+     */
+    fun defaultThreads(): Int =
+        (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 4)
 
     fun setNumThreads(context: Context, threads: Int) {
         prefs(context).edit().putInt("num_threads", threads.coerceIn(1, 8)).apply()

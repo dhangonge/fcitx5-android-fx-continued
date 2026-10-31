@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import timber.log.Timber
@@ -59,15 +60,26 @@ class VoiceInputAudioCapture(
             onError(context.getString(org.fcitx.fcitx5.android.R.string.voice_error_audio_minbuf, minBuf))
             return false
         }
-        val rec = try {
-            AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                config.sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                minBuf * 2,
+        // A 100 ms read at 16 kHz needs 12.8 KB; give the recorder at least four
+        // such blocks so a scheduling hiccup does not drop audio into an overrun.
+        val chunkSamples = config.sampleRate / 10
+        val chunkBytes = chunkSamples * config.bitsPerSample / 8 * config.channels
+        val bufferBytes = maxOf(minBuf * 2, chunkBytes * 4)
+        val lowLatency = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        val builder = AudioRecord.Builder()
+            .setAudioSource(MediaRecorder.AudioSource.MIC)
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(config.sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build()
             )
-        } catch (e: SecurityException) {
+            .setBufferSizeInBytes(bufferBytes)
+        if (lowLatency) builder.setPerformanceMode(AudioRecord.PERFORMANCE_MODE_LOW_LATENCY)
+        val rec = try {
+            builder.build()
+        } catch (e: Throwable) {
             onError(context.getString(org.fcitx.fcitx5.android.R.string.voice_error_audio_construct, e.message))
             return false
         }
@@ -86,9 +98,6 @@ class VoiceInputAudioCapture(
             return false
         }
 
-        // 100 ms chunks ⇒ low latency for partials, modest binder pressure.
-        val chunkSamples = config.sampleRate / 10
-        val chunkBytes = chunkSamples * config.bitsPerSample / 8 * config.channels
         val buf = ByteArray(chunkBytes)
         val startedAt = System.currentTimeMillis()
 
@@ -119,7 +128,10 @@ class VoiceInputAudioCapture(
                 Timber.w(e, "capture thread crashed")
             }
         }
-        Timber.i("VoiceInputAudioCapture started: config=$config minBuf=$minBuf chunkBytes=$chunkBytes")
+        Timber.i(
+            "VoiceInputAudioCapture started: config=$config minBuf=$minBuf " +
+                "bufferBytes=$bufferBytes chunkBytes=$chunkBytes lowLatency=$lowLatency"
+        )
         return true
     }
 

@@ -16,8 +16,9 @@ import org.fcitx.fcitx5.android.voice.engine.BatchEngine
 import org.fcitx.fcitx5.android.voice.engine.EngineLibrary
 import org.fcitx.fcitx5.android.voice.engine.ModelStore
 import org.fcitx.fcitx5.android.voice.engine.Pcm
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -38,8 +39,11 @@ class BatchProvider(
 
     private val context = context.applicationContext
 
-    private var worker: ExecutorService? = null
+    private var worker: ScheduledExecutorService? = null
     private val workerLock = Any()
+
+    /** Pending idle unload; armed when a session ends, cancelled when one starts. */
+    private var idleTimer: ScheduledFuture<*>? = null
 
     @Volatile
     private var destroyed = false
@@ -132,15 +136,17 @@ class BatchProvider(
         submit { closeEngine() }
         val executor = synchronized(workerLock) {
             destroyed = true
+            idleTimer?.cancel(false)
+            idleTimer = null
             worker.also { worker = null }
         }
         executor?.shutdown()
         executor?.let { runCatching { it.awaitTermination(2, TimeUnit.SECONDS) } }
     }
 
-    private fun executor(): ExecutorService? = synchronized(workerLock) {
+    private fun executor(): ScheduledExecutorService? = synchronized(workerLock) {
         if (destroyed) return null
-        worker ?: Executors.newSingleThreadExecutor { runnable ->
+        worker ?: Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "voice-asr-batch").apply { isDaemon = true }
         }.also { worker = it }
     }
@@ -154,8 +160,36 @@ class BatchProvider(
     private fun preloadEngine() {
         if (engine != null) return
         submit {
-            runCatching { ensureEngine() }.onFailure { Log.w(TAG, "preload failed", it) }
+            runCatching { ensureEngine() }
+                .onSuccess { armIdleUnload() }
+                .onFailure { Log.w(TAG, "preload failed", it) }
         }
+    }
+
+    /**
+     * Releases the loaded model after the whole-utterance engine sits idle. These
+     * models are the big ones (SenseVoice is a few hundred megabytes resident), so
+     * holding them between sessions costs more than the reload does.
+     */
+    private fun armIdleUnload() {
+        if (engine == null) return
+        val scheduler = worker ?: return
+        idleTimer?.cancel(false)
+        idleTimer = scheduler.schedule(
+            {
+                if (!sessionActive && engine != null) {
+                    Log.i(TAG, "Unloading model ${engineModelId} after ${IDLE_UNLOAD_MS / 1000} s idle")
+                    closeEngine()
+                }
+            },
+            IDLE_UNLOAD_MS,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun cancelIdleUnload() {
+        idleTimer?.cancel(false)
+        idleTimer = null
     }
 
     private fun startSessionOnWorker(cb: IVoiceInputCallback) {
@@ -164,6 +198,7 @@ class BatchProvider(
         chunks.clear()
         sampleCount = 0
         sessionActive = true
+        cancelIdleUnload()
         try {
             if (!EngineLibrary.isAvailable(context)) {
                 fail(
@@ -198,7 +233,15 @@ class BatchProvider(
         return BatchEngine(model, ModelStore.numThreads(context)).also {
             engine = it
             engineModelId = model.id
-            Log.i(TAG, "Model loaded in ${System.currentTimeMillis() - started} ms")
+            val warmUpStarted = System.currentTimeMillis()
+            it.warmUp()
+            Log.i(
+                TAG,
+                "Model ${model.id} (${model.family}) loaded in " +
+                    "${System.currentTimeMillis() - started} ms " +
+                    "(warm-up ${System.currentTimeMillis() - warmUpStarted} ms, " +
+                    "${ModelStore.numThreads(context)} threads, ${model.sizeBytes / 1024 / 1024} MiB)"
+            )
         }
     }
 
@@ -266,7 +309,10 @@ class BatchProvider(
         sampleCount = 0
         overflowLogged = false
         callback = null
-        if (wasActive) cb?.onSessionEnded()
+        if (wasActive) {
+            armIdleUnload()
+            cb?.onSessionEnded()
+        }
     }
 
     private fun fail(cb: IVoiceInputCallback, code: Int, message: String) {
@@ -276,6 +322,7 @@ class BatchProvider(
         sampleCount = 0
         overflowLogged = false
         callback = null
+        armIdleUnload()
         runCatching { cb.onError(code, message) }
         if (wasActive) runCatching { cb.onSessionEnded() }
     }
@@ -289,5 +336,8 @@ class BatchProvider(
         /** Whisper is slow on long input; a minute is already a lot to decode. */
         const val MAX_RECORDING_MS = 60_000L
         const val MAX_SAMPLES = (MAX_RECORDING_MS * SAMPLE_RATE / 1000).toInt()
+
+        /** Idle time after which the loaded model is released again. */
+        const val IDLE_UNLOAD_MS = 3 * 60 * 1000L
     }
 }

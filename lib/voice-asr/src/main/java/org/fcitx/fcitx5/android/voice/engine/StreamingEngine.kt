@@ -47,6 +47,18 @@ class StreamingEngine(model: StreamingModel, numThreads: Int = 1) : AutoCloseabl
 
     fun newSession(): Session = Session(recognizer)
 
+    /**
+     * Runs one decode on silence so the first real utterance does not pay for
+     * the runtime's one-time graph setup and thread pool spin-up. The transcript
+     * is thrown away.
+     */
+    fun warmUp(frames: Int = WARMUP_FRAMES) {
+        Session(recognizer).use { session ->
+            session.accept(FloatArray(frames), StreamingModel.SAMPLE_RATE)
+            runCatching { session.finish() }
+        }
+    }
+
     override fun close() = recognizer.release()
 
     class Session(private val recognizer: OnlineRecognizer) : AutoCloseable {
@@ -74,5 +86,10 @@ class StreamingEngine(model: StreamingModel, numThreads: Int = 1) : AutoCloseabl
         }
 
         override fun close() = stream.release()
+    }
+
+    private companion object {
+        /** 0.3 s at 16 kHz: enough frames for the encoder to emit one chunk. */
+        const val WARMUP_FRAMES = 4_800
     }
 }
