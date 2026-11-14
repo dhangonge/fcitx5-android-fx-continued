@@ -287,7 +287,10 @@ abstract class KeyView(
     }
 
     protected fun resolveShadowColor(theme: Theme): Int {
-        return resolveColorOverride(def.shadowColor, def.shadowColorMonet) ?: theme.keyShadowColor
+        val explicit = resolveColorOverride(def.shadowColor, def.shadowColorMonet)
+        if (explicit != null) return explicit
+        return if (theme is Theme.Monet && ThemeManager.prefs.keyboardUiStyle.getValue() == KeyboardUiStyle.Modern)
+            0x26000000 else theme.keyShadowColor
     }
 
     protected fun resolveTextColor(defaultColor: Int): Int {

@@ -51,17 +51,17 @@ class ThemePrefs(sharedPreferences: SharedPreferences) :
 
     // Profile defaults are resolved, never migrated into the user's old values.
     fun resolveKeyBorder(theme: Theme): Boolean = KeyboardUiDefaults.bordered(
-        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme !is Theme.Custom,
         if (sharedPreferences.contains(keyBorder.key)) keyBorder.getValue() else null
     )
 
     fun resolveKeyRadius(theme: Theme): Int = KeyboardUiDefaults.radius(
-        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme !is Theme.Custom,
         if (sharedPreferences.contains(keyRadius.key)) keyRadius.getValue() else null
     )
 
     fun resolvePopupRadius(theme: Theme): Int = KeyboardUiDefaults.extensionRadius(
-        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme !is Theme.Custom,
         if (sharedPreferences.contains(keyRadius.key)) keyRadius.getValue() else null
     )
 

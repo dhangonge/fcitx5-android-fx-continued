@@ -2000,8 +2000,8 @@ abstract class BaseKeyboard(
         val result = if (bits == 0) true else if (cancelledPointerIds.isEmpty()) {
             super.dispatchTouchEvent(event)
         } else {
-            val filtered = event.split(bits)
-            try { super.dispatchTouchEvent(filtered) } finally { filtered.recycle() }
+            val filtered = PointerEventFilter.copy(event, bits)
+            if (filtered == null) true else try { super.dispatchTouchEvent(filtered) } finally { filtered.recycle() }
         }
         if (action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_UP) {
             val id = event.getPointerId(event.actionIndex)
