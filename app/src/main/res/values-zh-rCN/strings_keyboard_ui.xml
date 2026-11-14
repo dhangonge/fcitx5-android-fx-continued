@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-License-Identifier: LGPL-2.1-or-later
+    SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+-->
+<resources>
+    <string name="keyboard_ui_style">键盘视觉风格</string>
+    <string name="keyboard_ui_style_modern">现代</string>
+    <string name="keyboard_ui_style_classic">经典</string>
+    <string name="keyboard_motion_settings">动效</string>
+    <string name="keyboard_motion_master">启用键盘动效</string>
+    <string name="keyboard_motion_master_summary">系统动画设置和“禁用动画”始终优先。关闭总开关会保留各分类的选择。</string>
+    <string name="keyboard_motion_panels">面板动效</string>
+    <string name="keyboard_motion_candidates">候选动效</string>
+    <string name="keyboard_motion_layout">布局切换动效</string>
+    <string name="keyboard_motion_voice">语音动效</string>
+    <string name="keyboard_motion_material">材质动效</string>
+    <string name="keyboard_motion_material_summary">预留可选材质动效。默认不启用磨砂效果。</string>
+    <string name="keyboard_motion_tools">工具动效</string>
+    <string name="keyboard_motion_scenes">场景切换动效</string>
+</resources>

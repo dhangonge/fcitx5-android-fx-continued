@@ -260,8 +260,12 @@ object ThemeManager {
         val ctx = appContext.createDeviceProtectedStorageContext()
         val sp = PreferenceManager.getDefaultSharedPreferences(ctx)
         sp.edit {
-            prefs.managedPreferences.forEach {
-                it.value.putValueTo(this@edit)
+            prefs.managedPreferences.forEach { (key, preference) ->
+                if ((key == prefs.keyBorder.key || key == prefs.keyRadius.key) &&
+                    !preference.sharedPreferences.contains(key)) {
+                    // Preserve unset/profile-derived values across Direct Boot as well.
+                    remove(key)
+                } else preference.putValueTo(this@edit)
             }
         }
     }

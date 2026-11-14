@@ -19,8 +19,11 @@ import android.view.ViewPropertyAnimator
 import android.widget.ImageView
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.data.theme.ThemePrefs
+import org.fcitx.fcitx5.android.input.motion.MotionDomain
+import org.fcitx.fcitx5.android.input.motion.MotionPolicy
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
@@ -38,7 +41,7 @@ import splitties.views.padding
 class ToolButton(context: Context) : CustomGestureView(context) {
 
     companion object {
-        val disableAnimation by AppPrefs.getInstance().advanced.disableAnimation
+        val disableAnimation get() = !MotionPolicy.enabled(MotionDomain.Tools)
     }
 
     val image = imageView {
@@ -55,6 +58,7 @@ class ToolButton(context: Context) : CustomGestureView(context) {
         visibility = View.GONE
     }
 
+    private val modern = ThemeManager.prefs.keyboardUiStyle.getValue() == ThemePrefs.KeyboardUiStyle.Modern
     private var theme: Theme? = null
     private var isActive: Boolean = false
     private var usingCustomDrawable: Boolean = false
@@ -94,6 +98,7 @@ class ToolButton(context: Context) : CustomGestureView(context) {
         image.visibility = View.VISIBLE
         image.imageTintList = currentIconColor()?.let { ColorStateList.valueOf(it) }
         image.imageResource = icon
+        applyBackground()
     }
 
     fun setIconFromDrawable(drawable: Drawable?, tintWithTheme: Boolean = true) {
@@ -110,6 +115,7 @@ class ToolButton(context: Context) : CustomGestureView(context) {
                 image.imageTintList = null
                 image.imageDrawable?.setTintList(null)
             }
+            applyBackground()
         }
     }
 
@@ -118,6 +124,7 @@ class ToolButton(context: Context) : CustomGestureView(context) {
             image.visibility = View.GONE
             textView.visibility = View.VISIBLE
             textView.text = text
+            updateAppearance()
         }
     }
 
@@ -128,7 +135,7 @@ class ToolButton(context: Context) : CustomGestureView(context) {
 
     /**
      * Set the active state of this button.
-     * When active, the button icon color changes, background remains transparent.
+     * Modern uses a shared active treatment for icons and text; Classic keeps its legacy treatment.
      */
     fun setActive(active: Boolean) {
         if (isActive == active || theme == null) return
@@ -150,22 +157,48 @@ class ToolButton(context: Context) : CustomGestureView(context) {
         } else {
             image.imageTintList = iconColor?.let { ColorStateList.valueOf(it) }
         }
-        textView.setTextColor(theme.altKeyTextColor)
+        textView.setTextColor(if (modern && isActive) activeForeground(theme) else theme.altKeyTextColor)
         applyBackground()
     }
 
     @ColorInt
     private fun currentIconColor(): Int? {
         val theme = theme ?: return null
-        return if (isActive) theme.accentKeyBackgroundColor else theme.altKeyTextColor
+        return when {
+            modern && isActive -> activeForeground(theme)
+            isActive -> theme.accentKeyBackgroundColor
+            else -> theme.altKeyTextColor
+        }
+    }
+
+    private fun activeForeground(theme: Theme): Int =
+        if (theme is Theme.Custom) theme.genericActiveForegroundColor else theme.keyTextColor
+
+    fun onMotionPolicyChanged() {
+        clearTransientPressState()
+        applyBackground()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        applyBackground()
+    }
+
+    override fun onDetachedFromWindow() {
+        image.animate().cancel()
+        clearTransientPressState()
+        super.onDetachedFromWindow()
     }
 
     private fun applyBackground() {
         val theme = theme ?: return
         val isText = textView.visibility == View.VISIBLE
-        if (isText && isActive) {
+        if (isActive && (modern || isText)) {
             val activeBg = GradientDrawable().apply {
-                setColor(theme.accentKeyBackgroundColor and 0x00ffffff or (0x3f shl 24))
+                setColor(if (modern) {
+                    if (theme is Theme.Custom) theme.genericActiveBackgroundColor
+                    else androidx.core.graphics.ColorUtils.blendARGB(theme.barColor, theme.accentKeyBackgroundColor, 0.18f)
+                } else theme.accentKeyBackgroundColor and 0x00ffffff or (0x3f shl 24))
                 cornerRadius = dp(8).toFloat()
             }
             background = if (disableAnimation) {

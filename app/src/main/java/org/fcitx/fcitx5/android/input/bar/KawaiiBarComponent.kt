@@ -386,6 +386,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         return Triple(buttons, config.toolbarToggleButton, config.hideKeyboardButton)
     }
 
+    fun onMotionPolicyChanged() {
+        _idleUi?.onMotionPolicyChanged()
+    }
+
     private var _idleUi: IdleUi? = null
     private var currentButtonsConfig: List<ConfigurableButton> = emptyList()
     private var currentToolbarToggleConfig: ConfigurableButton = ConfigurableButton("toolbar_toggle")

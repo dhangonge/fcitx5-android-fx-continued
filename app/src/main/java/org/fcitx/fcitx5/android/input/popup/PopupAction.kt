@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.popup
 import android.graphics.Rect
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
+import org.fcitx.fcitx5.android.input.keyboard.KeyView
 
 sealed class PopupAction {
 
@@ -24,17 +25,20 @@ sealed class PopupAction {
     ) : PopupAction()
 
     data class DismissAction(
-        override val viewId: Int
+        override val viewId: Int,
+        val animate: Boolean = true
     ) : PopupAction()
 
     data class DismissAllAction(
-        override val viewId: Int = -1
+        override val viewId: Int = -1,
+        val keepExtensionOwner: KeyView? = null
     ) : PopupAction()
 
     data class ShowKeyboardAction(
         override val viewId: Int,
         val keyboard: KeyDef.Popup.Keyboard,
-        val bounds: Rect
+        val bounds: Rect,
+        val owner: KeyView? = null
     ) : PopupAction()
 
     data class ShowMenuAction(
@@ -46,7 +50,8 @@ sealed class PopupAction {
     data class ShowLongPressKeyboardAction(
         override val viewId: Int,
         val keyboard: KeyDef.Popup.LongPressKeyboard,
-        val bounds: Rect
+        val bounds: Rect,
+        val owner: KeyView? = null
     ) : PopupAction()
 
     data class ChangeFocusAction(
@@ -58,6 +63,7 @@ sealed class PopupAction {
 
     data class TriggerAction(
         override val viewId: Int,
-        var outAction: KeyAction? = null
+        var outAction: KeyAction? = null,
+        var handled: Boolean = false
     ) : PopupAction()
 }

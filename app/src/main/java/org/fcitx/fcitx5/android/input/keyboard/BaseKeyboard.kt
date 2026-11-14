@@ -196,6 +196,8 @@ abstract class BaseKeyboard(
 
     /** Active pointer targets for the custom touch dispatch workaround. */
     private val touchTargets = hashMapOf<Int, TouchTarget>()
+    private val pointerOwners = hashMapOf<Int, KeyView>()
+    private val cancelledPointerIds = hashSetOf<Int>()
 
     @Keep
     private val splitStateChangeListener = SplitKeyboardStateManager.OnSplitStateChangeListener { shouldSplit ->
@@ -305,6 +307,7 @@ abstract class BaseKeyboard(
 
     protected open fun reloadLayout() {
         val startedAt = SystemClock.elapsedRealtime()
+        releaseAllTouchTargets()
         // Detach ripple-occluder listeners from views of the outgoing tree before it is
         // discarded or cached; the ripple view itself is recreated on every reload.
         keyboardWaterRippleView?.setOccluders(emptyList())
@@ -329,7 +332,6 @@ abstract class BaseKeyboard(
             add(rippleView, lParams(matchParent, matchParent))
         }
         spaceKeys.clear()
-        releaseAllTouchTargets()
         composeAwareKeys.clear()
 
         val splitKeyboard = splitKeyboardManager.shouldUseSplitKeyboard(width)
@@ -1127,6 +1129,10 @@ abstract class BaseKeyboard(
                 var swipeDirectionLocked: SwipeAxis? = null
                 onGestureListener = OnGestureListener { view, event ->
                     when (event.type) {
+                        GestureType.Down -> {
+                            swipeDirectionLocked = null
+                            false
+                        }
                         GestureType.Move -> {
                             val countX = event.countX
                             val countY = event.countY
@@ -1684,6 +1690,11 @@ abstract class BaseKeyboard(
         behaviors: Set<KeyDef.Behavior>,
         popup: Array<KeyDef.Popup>?
     ) {
+        view.cancelGestures()
+        onPopupAction(PopupAction.DismissAction(view.id, animate = false))
+        view.onGestureCancelled = if (popup.isNullOrEmpty()) null else { cancelledView ->
+            onPopupAction(PopupAction.DismissAction(cancelledView.id, animate = false))
+        }
         view.setOnClickListener(null)
         view.setOnLongClickListener(null)
         view.repeatEnabled = false
@@ -1780,8 +1791,8 @@ abstract class BaseKeyboard(
                 is KeyDef.Popup.LongPressKeyboard -> {
                     view.setOnLongClickListener { currentView ->
                         currentView as KeyView
-                        dismissAllPopups()
-                        onPopupAction(PopupAction.ShowLongPressKeyboardAction(currentView.id, it, currentView.bounds))
+                        dismissAllPopups(currentView)
+                        onPopupAction(PopupAction.ShowLongPressKeyboardAction(currentView.id, it, currentView.bounds, owner = currentView))
                         false
                     }
                     val oldOnGestureListener = view.onGestureListener ?: OnGestureListener.Empty
@@ -1793,6 +1804,7 @@ abstract class BaseKeyboard(
                                 onPopupChangeFocus(currentView.id, event.x, event.y)
                             }
                             GestureType.Up -> {
+                                onPopupChangeFocus(currentView.id, event.x, event.y)
                                 onPopupTrigger(currentView.id)
                             }
                             else -> false
@@ -1803,8 +1815,8 @@ abstract class BaseKeyboard(
                     if (!hasLongPressKeyboard && !hasLongPressBehavior) {
                         view.setOnLongClickListener { currentView ->
                             currentView as KeyView
-                            dismissAllPopups()
-                            onPopupAction(PopupAction.ShowKeyboardAction(currentView.id, it, currentView.bounds))
+                            dismissAllPopups(currentView)
+                            onPopupAction(PopupAction.ShowKeyboardAction(currentView.id, it, currentView.bounds, owner = currentView))
                             false
                         }
                         val oldOnGestureListener = view.onGestureListener ?: OnGestureListener.Empty
@@ -1816,6 +1828,7 @@ abstract class BaseKeyboard(
                                     onPopupChangeFocus(currentView.id, event.x, event.y)
                                 }
                                 GestureType.Up -> {
+                                    onPopupChangeFocus(currentView.id, event.x, event.y)
                                     onPopupTrigger(currentView.id)
                                 }
                                 else -> false
@@ -1840,8 +1853,10 @@ abstract class BaseKeyboard(
                                     )
                                 }
                                 GestureType.Up -> {
-                                    onPopupAction(PopupAction.DismissAction(currentView.id))
-                                    dismissAllPopups()
+                                    if (!currentView.isKeyExtensionActive) {
+                                        onPopupAction(PopupAction.DismissAction(currentView.id))
+                                        dismissAllPopups()
+                                    }
                                 }
                             }
                         }
@@ -1858,8 +1873,10 @@ abstract class BaseKeyboard(
                                     PopupAction.PreviewAction(currentView.id, it.content, currentView.bounds)
                                 )
                                 GestureType.Up -> {
-                                    onPopupAction(PopupAction.DismissAction(currentView.id))
-                                    dismissAllPopups()
+                                    if (!currentView.isKeyExtensionActive) {
+                                        onPopupAction(PopupAction.DismissAction(currentView.id))
+                                        dismissAllPopups()
+                                    }
                                 }
                                 else -> {}
                             }
@@ -1937,12 +1954,66 @@ abstract class BaseKeyboard(
      * for custom touch event dispatching
      */
     private fun releaseAllTouchTargets() {
-        touchTargets.forEach {
-            val keyView = it.value.view
-            keyView.cancelGestures()
-            onPopupAction(PopupAction.DismissAction(keyView.id))
-        }
+        val keys = (allViews.filterIsInstance<CustomGestureView>().toList() +
+            touchTargets.values.map { it.view } + pointerOwners.values).distinct()
+        cancelledPointerIds.addAll(pointerOwners.keys)
+        pointerOwners.clear()
+        keys.forEach { it.cancelGestures() }
         touchTargets.clear()
+        dismissAllPopups()
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (pointerOwners.isNotEmpty() || touchTargets.isNotEmpty()) releaseAllTouchTargets()
+            cancelledPointerIds.clear()
+        }
+        if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            val owners = pointerOwners.values.filter { it.isKeyExtensionActive }.distinct()
+            owners.forEach { owner ->
+                pointerOwners.filterValues { it === owner }.keys.forEach {
+                    cancelledPointerIds.add(it)
+                    touchTargets.remove(it)
+                }
+                owner.cancelGestures()
+                onPopupAction(PopupAction.DismissAction(owner.id, animate = false))
+            }
+        }
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            val i = event.actionIndex
+            val location = intArrayOf(0, 0).also { getLocationInWindow(it) }
+            val x = (event.getX(i) + location[0]).roundToInt()
+            val y = (event.getY(i) + location[1]).roundToInt()
+            allViews.filterIsInstance<KeyView>().firstOrNull { key ->
+                key.getLocationInWindow(location)
+                key.isEnabled && x >= location[0] && x < location[0] + key.width &&
+                    y >= location[1] && y < location[1] + key.height
+            }?.let { pointerOwners[event.getPointerId(i)] = it }
+        }
+        // Only the cancelled extension owner's pointer is excluded, not normal keys.
+        var bits = 0
+        for (i in 0 until event.pointerCount) {
+            val id = event.getPointerId(i)
+            if (id !in cancelledPointerIds) bits = bits or (1 shl id)
+        }
+        val result = if (bits == 0) true else if (cancelledPointerIds.isEmpty()) {
+            super.dispatchTouchEvent(event)
+        } else {
+            val filtered = event.split(bits)
+            try { super.dispatchTouchEvent(filtered) } finally { filtered.recycle() }
+        }
+        if (action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_UP) {
+            val id = event.getPointerId(event.actionIndex)
+            pointerOwners.remove(id)
+            cancelledPointerIds.remove(id)
+        }
+        if (action == MotionEvent.ACTION_CANCEL) releaseAllTouchTargets()
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pointerOwners.clear()
+            cancelledPointerIds.clear()
+        }
+        return result
     }
 
     private fun findTouchTarget(event: MotionEvent, pointerIndex: Int): TouchTarget? {
@@ -1974,7 +2045,7 @@ abstract class BaseKeyboard(
             event.metaState, event.xPrecision, event.yPrecision,
             event.deviceId, event.edgeFlags
         )
-        target.view.dispatchTouchEvent(e)
+        try { target.view.dispatchTouchEvent(e) } finally { e.recycle() }
     }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -1995,7 +2066,6 @@ abstract class BaseKeyboard(
         if (vivoKeypressWorkaround) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    releaseAllTouchTargets()
                     val pid = event.getPointerId(0)
                     val target = findTouchTarget(event, 0) ?: return false
                     touchTargets[pid] = target
@@ -2702,13 +2772,18 @@ abstract class BaseKeyboard(
         if (action is PopupAction.PreviewAction || action is PopupAction.ShowKeyboardAction ||
             action is PopupAction.ShowLongPressKeyboardAction || action is PopupAction.ShowMenuAction
         ) {
-            dismissAllPopups()
+            val owner = when (action) {
+                is PopupAction.ShowKeyboardAction -> action.owner
+                is PopupAction.ShowLongPressKeyboardAction -> action.owner
+                else -> null
+            }
+            dismissAllPopups(owner)
         }
         popupActionListener?.onPopupAction(action)
     }
 
-    private fun dismissAllPopups() {
-        popupActionListener?.onPopupAction(PopupAction.DismissAllAction())
+    private fun dismissAllPopups(keepExtensionOwner: KeyView? = null) {
+        popupActionListener?.onPopupAction(PopupAction.DismissAllAction(keepExtensionOwner = keepExtensionOwner))
     }
 
     private fun onPopupChangeFocus(viewId: Int, x: Float, y: Float): Boolean {
@@ -2721,8 +2796,9 @@ abstract class BaseKeyboard(
         val triggerAction = PopupAction.TriggerAction(viewId)
         // ask popup keyboard whether there's a pending KeyAction
         onPopupAction(triggerAction)
-        val action = triggerAction.outAction ?: return false
-        onAction(action, KeyActionListener.Source.Popup)
+        val action = triggerAction.outAction
+        if (action == null && !triggerAction.handled) return false
+        if (action != null) onAction(action, KeyActionListener.Source.Popup)
         onPopupAction(PopupAction.DismissAction(viewId))
         return true
     }

@@ -8,14 +8,19 @@ package org.fcitx.fcitx5.android.input.candidates
 import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.data.theme.ThemePrefs
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.font.FontProviders
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.utils.pressHighlightDrawable
+import splitties.dimensions.dp
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.lParams
@@ -30,6 +35,12 @@ class CandidateItemUi(
     // Optional: external font for batch setting (avoids repeated FontProviders access)
     private val font: Typeface? = null
 ) : Ui {
+
+    private val modern = ThemeManager.prefs.keyboardUiStyle.getValue() == ThemePrefs.KeyboardUiStyle.Modern
+    private val softActive = modern && theme !is Theme.Custom && android.graphics.Color.alpha(theme.backgroundColor) == 255
+    private val activeColor = if (softActive) androidx.core.graphics.ColorUtils.blendARGB(
+        theme.backgroundColor, theme.genericActiveBackgroundColor, 0.18f) else theme.genericActiveBackgroundColor
+    private val activeForeground = if (softActive) theme.candidateTextColor else theme.genericActiveForegroundColor
 
     private val text = view(::AutoScaleTextView) {
         scaleMode = AutoScaleTextView.Mode.Proportional
@@ -50,8 +61,8 @@ class CandidateItemUi(
     private val normalBackground = pressHighlightDrawable(theme.keyPressHighlightColor)
 
     private val activeBackground = GradientDrawable().apply {
-        setColor(theme.genericActiveBackgroundColor)
-        cornerRadius = 8f
+        setColor(activeColor)
+        cornerRadius = if (modern) ctx.dp(8).toFloat() else 8f
     }
 
     private var active = false
@@ -70,7 +81,7 @@ class CandidateItemUi(
             this.active = active
             renderCandidate()
         }
-        text.setTextColor(if (this.active) theme.genericActiveForegroundColor else theme.candidateTextColor)
+        text.setTextColor(if (this.active) activeForeground else theme.candidateTextColor)
         text.background = null
         root.background = if (this.active) activeBackground else normalBackground
     }
@@ -92,8 +103,11 @@ class CandidateItemUi(
     }
 
     private fun renderCandidate() {
-        val fg = if (active) theme.genericActiveForegroundColor else theme.candidateTextColor
-        val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
+        val fg = if (active) activeForeground else theme.candidateTextColor
+        val altFg = if (active) {
+            if (softActive && androidx.core.graphics.ColorUtils.calculateContrast(theme.candidateCommentColor, activeColor) >= 4.5)
+                theme.candidateCommentColor else activeForeground
+        } else theme.candidateCommentColor
         text.text = buildSpannedString {
             color(fg) {
                 append(candidate.text)
@@ -102,8 +116,12 @@ class CandidateItemUi(
                 if (candidate.spaceBetweenComment) {
                     append(" ")
                 }
+                val commentStart = length
                 color(altFg) {
                     append(candidate.comment)
+                }
+                if (modern) {
+                    setSpan(RelativeSizeSpan(0.75f), commentStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
         }

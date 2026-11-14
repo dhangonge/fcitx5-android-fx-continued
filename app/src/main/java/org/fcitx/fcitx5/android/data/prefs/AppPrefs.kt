@@ -561,6 +561,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     val clipboard = Clipboard().register()
     val symbols = Symbols().register()
     val advanced = Advanced().register()
+    val motion = registerProvider(::MotionPrefs)
 
     @Keep
     private val onSharedPreferenceChangeListener =
@@ -602,12 +603,14 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             listOf(
                 keyboard,
                 candidates,
-                clipboard
+                clipboard,
+                motion
             ).forEach { category ->
                 category.managedPreferences.forEach {
                     it.value.putValueTo(this@edit)
                 }
             }
+            advanced.disableAnimation.putValueTo(this@edit)
         }
     }
 

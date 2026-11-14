@@ -7,6 +7,9 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.ColorFilter
@@ -82,6 +85,7 @@ import org.fcitx.fcitx5.android.input.picker.emojiPicker
 import org.fcitx.fcitx5.android.input.picker.emoticonPicker
 import org.fcitx.fcitx5.android.input.picker.symbolPicker
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
+import org.fcitx.fcitx5.android.input.motion.MotionPolicy
 import org.fcitx.fcitx5.android.input.font.FontProviders
 import org.fcitx.fcitx5.android.input.preedit.PreeditComponent
 import org.fcitx.fcitx5.android.input.status.ButtonsAdjustingWindow
@@ -1474,6 +1478,45 @@ class InputView(
     private val scope = DynamicScope()
     private val broadcaster = InputBroadcaster()
     private val popup = PopupComponent()
+    private var motionObserverRegistered = false
+    private val motionObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            if (motionObserverRegistered) refreshMotionPolicy()
+        }
+    }
+    @Keep
+    private val onMotionPreferenceChange = ManagedPreferenceProvider.OnChangeListener { key ->
+        if (key.startsWith("keyboard_motion_") || key == "disable_animation") {
+            post { if (isAttachedToWindow) refreshMotionPolicy() }
+        }
+    }
+
+    private fun refreshMotionPolicy() {
+        MotionPolicy.refreshSystemMotion(context)
+        popup.dismissAll()
+        kawaiiBar.onMotionPolicyChanged()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility != View.VISIBLE && isAttachedToWindow) {
+            popup.dismissAll()
+            kawaiiBar.onMotionPolicyChanged()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        MotionPolicy.refreshSystemMotion(context)
+        try {
+            context.contentResolver.registerContentObserver(MotionPolicy.systemMotionSettingsUri, false, motionObserver)
+            motionObserverRegistered = true
+        } catch (_: SecurityException) {
+            motionObserverRegistered = false
+        }
+        AppPrefs.getInstance().motion.registerOnChangeListener(onMotionPreferenceChange)
+        advancedPrefs.registerOnChangeListener(onMotionPreferenceChange)
+    }
     private val punctuation = PunctuationComponent()
     private val returnKeyDrawable = ReturnKeyDrawableComponent()
     private val preeditEmptyState = PreeditEmptyStateComponent()
@@ -3426,6 +3469,7 @@ class InputView(
     }
 
     fun startInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean = false) {
+        refreshMotionPolicy()
         if (isAdjustingMode) {
             exitAdjustingMode()
         }
@@ -3610,6 +3654,12 @@ class InputView(
     }
 
     override fun onDetachedFromWindow() {
+        if (motionObserverRegistered) context.contentResolver.unregisterContentObserver(motionObserver)
+        motionObserverRegistered = false
+        AppPrefs.getInstance().motion.unregisterOnChangeListener(onMotionPreferenceChange)
+        advancedPrefs.unregisterOnChangeListener(onMotionPreferenceChange)
+        popup.dismissAll()
+        kawaiiBar.onMotionPolicyChanged()
         windowManager.onWindowChanged = null
         if (clipboardSearchActive) clipboardSearchOverlay.close()
         advancedPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)

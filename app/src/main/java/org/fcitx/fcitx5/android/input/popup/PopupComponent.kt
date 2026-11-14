@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.input.popup
 
 import android.graphics.Rect
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -19,6 +20,10 @@ import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
+import org.fcitx.fcitx5.android.input.keyboard.KeyView
+import org.fcitx.fcitx5.android.input.font.FontProviders
+import org.fcitx.fcitx5.android.input.motion.MotionDomain
+import org.fcitx.fcitx5.android.input.motion.MotionPolicy
 import org.mechdancer.dependency.Dependent
 import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
@@ -49,6 +54,27 @@ class PopupComponent :
     private val freeEntryUi = LinkedList<PopupEntryUi>()
 
     private val showingContainerUi = HashMap<Int, PopupContainerUi>()
+
+    private data class ExtensionSession(val owner: KeyView, val actions: Array<KeyAction>)
+    private val extensionSessions = HashMap<Int, ExtensionSession>()
+    // Retain closing owners until the next session/lifecycle boundary so cancellation also stops their frames.
+    private val extensionOwners = LinkedHashSet<KeyView>()
+    private val extensionLocation = IntArray(2)
+
+    private fun showExtension(viewId: Int, owner: KeyView?, labels: Array<String>, actions: Array<KeyAction>): Boolean {
+        if (owner == null || labels.size != actions.size) return false
+        val size = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+            FontProviders.getFontSize("popup_key_font", 23f), context.resources.displayMetrics)
+        if (!owner.showKeyExtension(root, labels, size, FontProviders.resolveTypeface("popup_key_font"),
+                MotionPolicy.enabled(MotionDomain.Panels))) return false
+        dismissJobs.remove(viewId)?.cancel()
+        showingEntryUi[viewId]?.let { dismissPopupEntry(viewId, it) }
+        dismissPopupContainer(viewId)
+        extensionOwners.removeAll { !it.isKeyExtensionActive }
+        extensionOwners.add(owner)
+        extensionSessions[viewId] = ExtensionSession(owner, actions)
+        return true
+    }
 
     private val keyBottomMargin by lazy {
         context.dp(ThemeManager.prefs.keyVerticalMargin.getValue())
@@ -146,7 +172,7 @@ class PopupComponent :
         showingEntryUi[viewId]?.setText(content)
     }
 
-    private fun showKeyboard(viewId: Int, keyboard: KeyDef.Popup.Keyboard, bounds: Rect) {
+    private fun showKeyboard(viewId: Int, keyboard: KeyDef.Popup.Keyboard, bounds: Rect, owner: KeyView? = null) {
         val keys: Array<String>
         val labels: Array<String>
         when (keyboard) {
@@ -170,6 +196,7 @@ class PopupComponent :
             dismissPopup(viewId)
             return
         }
+        if (showExtension(viewId, owner, labels, Array(keys.size) { KeyAction.FcitxKeyAction(keys[it]) })) return
         // clear popup preview text         OR create empty popup preview
         showingEntryUi[viewId]?.setText("") ?: showPopup(viewId, "", bounds)
         val keyboardUi = PopupKeyboardUi(
@@ -189,7 +216,7 @@ class PopupComponent :
         showPopupContainer(viewId, keyboardUi)
     }
 
-    private fun showLongPressKeyboard(viewId: Int, keyboard: KeyDef.Popup.LongPressKeyboard, bounds: Rect) {
+    private fun showLongPressKeyboard(viewId: Int, keyboard: KeyDef.Popup.LongPressKeyboard, bounds: Rect, owner: KeyView? = null) {
         // Get base candidates from PopupPreset using baseLabel
         val baseKeys = popupPresetJson?.get(keyboard.baseLabel)
             ?: PopupPreset[keyboard.baseLabel]
@@ -204,12 +231,10 @@ class PopupComponent :
             return
         }
 
-        // clear popup preview text OR create empty popup preview
-        showingEntryUi[viewId]?.setText("") ?: showPopup(viewId, "", bounds)
-        reallyShowLongPressKeyboard(viewId, keyboard, keys, bounds)
+        reallyShowLongPressKeyboard(viewId, keyboard, keys, bounds, owner)
     }
 
-    private fun reallyShowLongPressKeyboard(viewId: Int, keyboard: KeyDef.Popup.LongPressKeyboard, keys: Array<String>, bounds: Rect) {
+    private fun reallyShowLongPressKeyboard(viewId: Int, keyboard: KeyDef.Popup.LongPressKeyboard, keys: Array<String>, bounds: Rect, owner: KeyView?) {
         val labels = if (punctuation.enabled) {
             Array(keys.size) { idx ->
                 val source = keys[idx]
@@ -227,6 +252,9 @@ class PopupComponent :
             }
         } else keys
         
+        val actions = Array<KeyAction>(keys.size) { if (it == 0) keyboard.action else KeyAction.FcitxKeyAction(keys[it]) }
+        if (showExtension(viewId, owner, labels, actions)) return
+        showingEntryUi[viewId]?.setText("") ?: showPopup(viewId, "", bounds)
         // Create a special keyboard UI that can execute the longPress macro when first item is selected
         val keyboardUi = LongPressPopupKeyboardUi(
             context,
@@ -276,14 +304,31 @@ class PopupComponent :
     }
 
     private fun changeFocus(viewId: Int, x: Float, y: Float): Boolean {
+        extensionSessions[viewId]?.let { session ->
+            // Existing popup actions carry trigger-view-local coordinates.
+            session.owner.getLocationInWindow(extensionLocation)
+            session.owner.selectKeyExtension(extensionLocation[0] + x, extensionLocation[1] + y)
+            return true
+        }
         return showingContainerUi[viewId]?.changeFocus(x, y) ?: false
     }
 
     private fun triggerFocused(viewId: Int): KeyAction? {
+        extensionSessions.remove(viewId)?.let { session ->
+            val index = session.owner.completeKeyExtension()
+            session.owner.dismissKeyExtension(MotionPolicy.enabled(MotionDomain.Panels))
+            return index?.let { session.actions.getOrNull(it) }
+        }
         return showingContainerUi[viewId]?.onTrigger()
     }
 
-    private fun dismissPopup(viewId: Int) {
+    private fun dismissPopup(viewId: Int, animate: Boolean = true) {
+        val pending = extensionSessions.remove(viewId)?.owner
+        pending?.dismissKeyExtension(animate && MotionPolicy.enabled(MotionDomain.Panels))
+        if (!animate) {
+            pending?.cancelGestures()
+            extensionOwners.filter { it.id == viewId }.forEach { it.cancelKeyExtension() }
+        }
         dismissPopupContainer(viewId)
         showingEntryUi[viewId]?.also {
             val timeLeft = it.lastShowTime + hideThreshold - System.currentTimeMillis()
@@ -312,7 +357,13 @@ class PopupComponent :
         freeEntryUi.add(popup)
     }
 
-    fun dismissAll() {
+    fun dismissAll(keepExtensionOwner: KeyView? = null) {
+        val pendingOwners = extensionSessions.values.map { it.owner }.distinct()
+        extensionSessions.clear()
+        pendingOwners.filter { it !== keepExtensionOwner }.forEach { it.cancelGestures() }
+        // A retained closing owner may already be receiving a new ordinary tap.
+        extensionOwners.filter { it !== keepExtensionOwner }.forEach { it.cancelKeyExtension() }
+        extensionOwners.removeAll { it !== keepExtensionOwner || !it.isKeyExtensionActive }
         // avoid modifying collection while iterating
         dismissJobs.forEach { (_, job) ->
             job.cancel()
@@ -335,14 +386,17 @@ class PopupComponent :
         with(action) {
             when (this) {
                 is PopupAction.ChangeFocusAction -> outResult = changeFocus(viewId, x, y)
-                is PopupAction.DismissAction -> dismissPopup(viewId)
-                is PopupAction.DismissAllAction -> dismissAll()
+                is PopupAction.DismissAction -> dismissPopup(viewId, animate)
+                is PopupAction.DismissAllAction -> dismissAll(keepExtensionOwner)
                 is PopupAction.PreviewAction -> showPopup(viewId, content, bounds)
                 is PopupAction.PreviewUpdateAction -> updatePopup(viewId, content)
-                is PopupAction.ShowKeyboardAction -> showKeyboard(viewId, keyboard, bounds)
-                is PopupAction.ShowLongPressKeyboardAction -> showLongPressKeyboard(viewId, keyboard, bounds)
+                is PopupAction.ShowKeyboardAction -> showKeyboard(viewId, keyboard, bounds, owner)
+                is PopupAction.ShowLongPressKeyboardAction -> showLongPressKeyboard(viewId, keyboard, bounds, owner)
                 is PopupAction.ShowMenuAction -> showMenu(viewId, menu, bounds)
-                is PopupAction.TriggerAction -> outAction = triggerFocused(viewId)
+                is PopupAction.TriggerAction -> {
+                    handled = extensionSessions.containsKey(viewId)
+                    outAction = triggerFocused(viewId)
+                }
             }
         }
     }

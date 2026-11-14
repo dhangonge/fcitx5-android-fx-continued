@@ -9,6 +9,8 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.annotation.StringRes
 import androidx.core.content.edit
+import androidx.preference.PreferenceDataStore
+import androidx.preference.PreferenceScreen
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
@@ -34,11 +36,56 @@ class ThemePrefs(sharedPreferences: SharedPreferences) :
         return pref
     }
 
+    enum class KeyboardUiStyle(override val stringRes: Int) : ManagedPreferenceEnum {
+        Modern(R.string.keyboard_ui_style_modern),
+        Classic(R.string.keyboard_ui_style_classic);
+    }
+
+    val keyboardUiStyle = enumList(
+        R.string.keyboard_ui_style,
+        "keyboard_ui_style",
+        KeyboardUiStyle.Modern
+    )
+
     val keyBorder = switch(R.string.key_border, "key_border", false)
+
+    // Profile defaults are resolved, never migrated into the user's old values.
+    fun resolveKeyBorder(theme: Theme): Boolean = KeyboardUiDefaults.bordered(
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        if (sharedPreferences.contains(keyBorder.key)) keyBorder.getValue() else null
+    )
+
+    fun resolveKeyRadius(theme: Theme): Int = KeyboardUiDefaults.radius(
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        if (sharedPreferences.contains(keyRadius.key)) keyRadius.getValue() else null
+    )
+
+    fun resolvePopupRadius(theme: Theme): Int = KeyboardUiDefaults.extensionRadius(
+        keyboardUiStyle.getValue() == KeyboardUiStyle.Modern, theme is Theme.Builtin,
+        if (sharedPreferences.contains(keyRadius.key)) keyRadius.getValue() else null
+    )
+
+    override fun createUi(screen: PreferenceScreen) {
+        managedPreferencesUi.forEach { ui ->
+            val preference = ui.createUi(screen.context)
+            if (ui.key == keyBorder.key || ui.key == keyRadius.key) {
+                preference.preferenceDataStore = object : PreferenceDataStore() {
+                    override fun getBoolean(key: String?, defValue: Boolean) = resolveKeyBorder(ThemeManager.activeTheme)
+                    override fun putBoolean(key: String?, value: Boolean) = keyBorder.setValue(value)
+                    override fun getInt(key: String?, defValue: Int) = resolveKeyRadius(ThemeManager.activeTheme)
+                    override fun putInt(key: String?, value: Int) = keyRadius.setValue(value)
+                }
+                preference.setDefaultValue(if (ui.key == keyBorder.key) resolveKeyBorder(ThemeManager.activeTheme)
+                    else resolveKeyRadius(ThemeManager.activeTheme))
+            }
+            preference.isEnabled = if (ui.key == keyBorderStroke.key) resolveKeyBorder(ThemeManager.activeTheme) else ui.isEnabled()
+            screen.addPreference(preference)
+        }
+    }
 
     val keyBorderStroke = switch(
         R.string.key_border_stroke, "key_border_stroke", false,
-        enableUiOn = { keyBorder.getValue() }
+        enableUiOn = { resolveKeyBorder(ThemeManager.activeTheme) }
     )
 
     val specialKeyOvalShape = switch(R.string.special_key_oval_shape, "special_key_oval_shape", false)

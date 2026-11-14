@@ -11,9 +11,11 @@ import android.transition.Slide
 import android.transition.TransitionManager
 import android.transition.TransitionSet
 import android.view.View
+import android.view.ViewGroup
 import android.view.Gravity
 import android.view.animation.AlphaAnimation
 import android.view.animation.AnimationSet
+import android.view.animation.PathInterpolator
 import android.view.animation.TranslateAnimation
 import android.widget.LinearLayout
 import android.widget.Space
@@ -22,7 +24,6 @@ import android.widget.ViewAnimator
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
 import org.fcitx.fcitx5.android.input.bar.ui.idle.ButtonsBarUi
@@ -35,6 +36,8 @@ import org.fcitx.fcitx5.android.input.config.ConfigurableButton
 import org.fcitx.fcitx5.android.data.theme.IconThemeManager
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
+import org.fcitx.fcitx5.android.input.motion.MotionDomain
+import org.fcitx.fcitx5.android.input.motion.MotionPolicy
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
@@ -77,7 +80,7 @@ class IdleUi(
     var currentState = State.Empty
         private set
 
-    private val disableAnimation by AppPrefs.getInstance().advanced.disableAnimation
+    private val motionInterpolator = PathInterpolator(0.23f, 1f, 0.32f, 1f)
 
     private var inPrivate = false
 
@@ -130,12 +133,12 @@ class IdleUi(
     private val voiceBars = List(12) {
         View(ctx).apply {
             setBackgroundColor(theme.keyTextColor)
-            alpha = 0.35f
+            alpha = 0.25f
+            scaleY = 5f / 21f
         }
     }
 
-    private var voiceWavePhase = 0
-    private var lastVoiceLevelAt = 0L
+    private var voiceLevel = 0f
 
     /** Invoked when the user taps the cancel button shown while voice input runs. */
     var onVoiceCancel: (() -> Unit)? = null
@@ -171,24 +174,13 @@ class IdleUi(
         setPadding(dp(8), 0, dp(8), 0)
         add(voiceStatusText, lParams(0, wrapContent, weight = 1f))
         voiceBars.forEach { bar ->
-            add(bar, LinearLayout.LayoutParams(dp(3), dp(8)).apply {
+            add(bar, LinearLayout.LayoutParams(dp(3), dp(21)).apply {
                 marginStart = dp(3)
             })
         }
         add(voiceCancelButton, LinearLayout.LayoutParams(wrapContent, matchParent).apply {
             marginStart = dp(6)
         })
-    }
-
-    private val voiceWaveTicker = object : Runnable {
-        override fun run() {
-            if (voiceStatusBar.visibility != View.VISIBLE) return
-            val hasRecentLevel = System.currentTimeMillis() - lastVoiceLevelAt < 500L
-            if (!hasRecentLevel) {
-                updateVoiceBars(-1f)
-            }
-            voiceStatusBar.postDelayed(this, 120L)
-        }
     }
 
     private val animator = ViewAnimator(ctx).apply {
@@ -201,6 +193,7 @@ class IdleUi(
     private val inAnimation by lazy {
         AnimationSet(true).apply {
             duration = 200L
+            interpolator = motionInterpolator
             addAnimation(AlphaAnimation(0f, 1f))
             // 2 stands for Animation.RELATIVE_TO_PARENT
             addAnimation(TranslateAnimation(2, -0.3f * translateDirection, 2, 0f, 0, 0f, 0, 0f))
@@ -210,6 +203,7 @@ class IdleUi(
     private val outAnimation by lazy {
         AnimationSet(true).apply {
             duration = 200L
+            interpolator = motionInterpolator
             addAnimation(AlphaAnimation(1f, 0f))
             addAnimation(TranslateAnimation(2, 0f, 2, -0.3f * translateDirection, 0, 0f, 0, 0f))
         }
@@ -240,6 +234,18 @@ class IdleUi(
     override val root = frameLayout {
         add(idleBody, lParams(matchParent, matchParent))
         add(numberRow, lParams(matchParent, matchParent))
+        addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) {
+                onMotionPolicyChanged()
+            }
+
+            override fun onViewDetachedFromWindow(view: View) {
+                clearAnimation()
+                menuButton.iconAnimate().cancel()
+                hideKeyboardButton.iconAnimate().cancel()
+                updateVoiceBars(animate = false)
+            }
+        })
     }
 
     fun clearTransientPressState() {
@@ -365,10 +371,10 @@ class IdleUi(
     private fun updateMenuButtonRotation(instant: Boolean = false) {
         val targetRotation = menuButtonRotation
         menuButton.apply {
-            if (targetRotation == iconRotation) return
             iconAnimate().cancel()
-            if (!instant && !disableAnimation) {
-                iconAnimate().setDuration(200L).rotation(targetRotation)
+            if (targetRotation == iconRotation) return
+            if (!instant && MotionPolicy.enabled(MotionDomain.Tools)) {
+                iconAnimate().setDuration(200L).setInterpolator(motionInterpolator).rotation(targetRotation)
             } else {
                 iconRotation = targetRotation
             }
@@ -401,45 +407,35 @@ class IdleUi(
     }
 
     fun showVoiceStatus(label: String = "Recording") {
+        clearAnimation()
+        if (voiceStatusBar.visibility != View.VISIBLE) voiceLevel = 0f
         voiceStatusText.text = label
         voiceStatusBar.visibility = View.VISIBLE
         animator.visibility = View.GONE
         idleBody.visibility = View.VISIBLE
         numberRow.visibility = View.GONE
-        startVoiceWave()
+        updateVoiceBars(animate = false)
     }
 
     fun updateVoiceLevel(rms: Int) {
         if (voiceStatusBar.visibility != View.VISIBLE) return
-        lastVoiceLevelAt = System.currentTimeMillis()
-        val normalized = sqrt((rms / 3500f).coerceIn(0f, 1f))
-        updateVoiceBars(normalized)
+        voiceLevel = sqrt((rms / 3500f).coerceIn(0f, 1f))
+        val animate = root.isAttachedToWindow && voiceStatusBar.isShown &&
+            MotionPolicy.enabled(MotionDomain.Voice)
+        updateVoiceBars(animate)
     }
 
-    private fun updateVoiceBars(normalized: Float) {
-        val animated = normalized < 0f
-        val active = if (animated) {
-            voiceWavePhase = (voiceWavePhase + 1) % voiceBars.size
-            voiceBars.size
-        } else {
-            (normalized * voiceBars.size).roundToInt().coerceIn(1, voiceBars.size)
-        }
+    private fun updateVoiceBars(animate: Boolean) {
+        val active = (voiceLevel * voiceBars.size).roundToInt().coerceIn(0, voiceBars.size)
         voiceBars.forEachIndexed { index, bar ->
-            val waveDistance = kotlin.math.abs(index - voiceWavePhase).let {
-                minOf(it, voiceBars.size - it)
-            }
-            val animatedHeight = ctx.dp(5 + (4 - waveDistance.coerceAtMost(4)) * 4)
-            val levelHeight = ctx.dp(5 + ((index % 4) + 1) * 4)
-            val targetHeight = when {
-                animated -> animatedHeight
-                index < active -> levelHeight
-                else -> ctx.dp(5)
-            }
-            bar.layoutParams = bar.layoutParams.apply { this.height = targetHeight }
-            bar.alpha = when {
-                animated -> if (waveDistance <= 3) 0.9f else 0.3f
-                index < active -> 0.95f
-                else -> 0.25f
+            val targetHeight = if (index < active) 5f + ((index % 4) + 1) * 4f * voiceLevel else 5f
+            val targetScale = targetHeight / 21f
+            bar.animate().cancel()
+            bar.alpha = if (index < active) 0.95f else 0.25f
+            if (animate) {
+                bar.animate().scaleY(targetScale).setDuration(120L).setInterpolator(motionInterpolator)
+            } else {
+                bar.scaleY = targetScale
             }
         }
     }
@@ -452,19 +448,32 @@ class IdleUi(
         idleBody.visibility = View.VISIBLE
     }
 
-    private fun startVoiceWave() {
-        voiceStatusBar.removeCallbacks(voiceWaveTicker)
-        voiceStatusBar.post(voiceWaveTicker)
+    private fun stopVoiceWave() {
+        voiceLevel = 0f
+        updateVoiceBars(animate = false)
     }
 
-    private fun stopVoiceWave() {
-        voiceStatusBar.removeCallbacks(voiceWaveTicker)
-        lastVoiceLevelAt = 0L
+    fun onMotionPolicyChanged() {
+        clearAnimation()
+        updateMenuButtonRotation(instant = true)
+        hideKeyboardButton.iconAnimate().cancel()
+        fun refreshTools(view: View) {
+            if (view is ToolButton) view.onMotionPolicyChanged()
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) refreshTools(view.getChildAt(index))
+            }
+        }
+        refreshTools(root)
+        updateVoiceBars(animate = false)
     }
 
     private fun clearAnimation() {
+        TransitionManager.endTransitions(root)
         animator.inAnimation = null
         animator.outAnimation = null
+        for (index in 0 until animator.childCount) animator.getChildAt(index).clearAnimation()
+        idleBody.clearAnimation()
+        numberRow.clearAnimation()
     }
 
     private fun setAnimation() {
@@ -473,8 +482,14 @@ class IdleUi(
     }
 
     private fun enableSlideTransition(inTarget: View, outTarget: View, inGravity: Int, outGravity: Int) {
-        val slideIn = Slide(inGravity).apply { duration = 200L }
-        val slideOut = Slide(outGravity).apply { duration = 200L }
+        val slideIn = Slide(inGravity).apply {
+            duration = 200L
+            interpolator = motionInterpolator
+        }
+        val slideOut = Slide(outGravity).apply {
+            duration = 200L
+            interpolator = motionInterpolator
+        }
         slideIn.addTarget(inTarget)
         slideOut.addTarget(outTarget)
         val set = TransitionSet().apply {
@@ -487,6 +502,13 @@ class IdleUi(
 
     fun updateState(state: State, fromUser: Boolean = false) {
         Timber.d("Switch idle ui to $state")
+        clearAnimation()
+        val domain = when {
+            state == State.NumberRow || currentState == State.NumberRow -> MotionDomain.Scenes
+            state == State.Toolbar || currentState == State.Toolbar -> MotionDomain.Tools
+            else -> MotionDomain.Scenes
+        }
+        val animate = fromUser && root.isAttachedToWindow && MotionPolicy.enabled(domain)
         if (voiceStatusBar.visibility == View.VISIBLE && state != State.NumberRow) {
             currentState = state
             updateMenuButtonContentDescription()
@@ -494,13 +516,10 @@ class IdleUi(
             return
         }
         if (
-            !fromUser ||
-            disableAnimation ||
-            (state == State.InlineSuggestion || currentState == State.InlineSuggestion) ||
-            (state == State.NumberRow || currentState == State.NumberRow)
+            animate &&
+            state != State.InlineSuggestion && currentState != State.InlineSuggestion &&
+            state != State.NumberRow && currentState != State.NumberRow
         ) {
-            clearAnimation()
-        } else {
             setAnimation()
         }
         when (state) {
@@ -511,15 +530,16 @@ class IdleUi(
             State.InlineSuggestion -> animator.displayedChild = 3
         }
         if (state == State.NumberRow) {
+            updateVoiceBars(animate = false)
             numberRow.keyActionListener = commonKeyActionListener.listener
             numberRow.popupActionListener = popup.listener
-            if (fromUser && !disableAnimation) {
+            if (animate) {
                 enableSlideTransition(numberRow, idleBody, Gravity.END, Gravity.START)
             }
             numberRow.visibility = View.VISIBLE
             idleBody.visibility = View.GONE
         } else if (currentState == State.NumberRow) {
-            if (fromUser && !disableAnimation) {
+            if (animate) {
                 enableSlideTransition(idleBody, numberRow, Gravity.START, Gravity.END)
             }
             idleBody.visibility = View.VISIBLE

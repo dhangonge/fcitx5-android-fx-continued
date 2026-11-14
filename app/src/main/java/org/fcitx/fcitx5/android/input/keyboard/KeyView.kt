@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Typeface
@@ -22,6 +23,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.ImageView
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
@@ -31,6 +34,7 @@ import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.data.theme.ThemePrefs.KeyboardUiStyle
 import org.fcitx.fcitx5.android.data.theme.ThemePrefs.PunctuationPosition
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef.Appearance.Border
@@ -76,6 +80,7 @@ abstract class KeyView(
     val borderStroke: Boolean
     val rippled: Boolean
     val radius: Float
+    internal val keyExtensionRadius: Float
     val hMargin: Int
     val vMargin: Int
     protected val cornerLabelHorizontalSafeInset: Int
@@ -83,10 +88,11 @@ abstract class KeyView(
 
     init {
         val prefs = ThemeManager.prefs
-        bordered = prefs.keyBorder.getValue()
+        bordered = prefs.resolveKeyBorder(theme)
         borderStroke = prefs.keyBorderStroke.getValue()
         rippled = prefs.keyRippleEffect.getValue()
-        radius = dp(prefs.keyRadius.getValue().toFloat())
+        radius = dp(prefs.resolveKeyRadius(theme).toFloat())
+        keyExtensionRadius = dp(prefs.resolvePopupRadius(theme).toFloat())
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val hMarginPref =
             if (landscape) prefs.keyHorizontalMarginLandscape else prefs.keyHorizontalMargin
@@ -134,9 +140,82 @@ abstract class KeyView(
      * `AppearanceView` in the inner [ConstraintLayout], it can be smaller than its parent,
      * and holds the [bounds] for popup.
      */
-    protected val appearanceView = constraintLayout {
-        // sync any state from parent
+    private inner class AppearanceView(context: Context) : ConstraintLayout(context) {
+        override fun draw(canvas: Canvas) {
+            if (!keyExtensionSurface.active) super.draw(canvas)
+        }
+
+        fun drawContent(canvas: Canvas) {
+            super.dispatchDraw(canvas)
+        }
+    }
+
+    private val extensionAppearance = AppearanceView(ctx).apply {
         isDuplicateParentStateEnabled = true
+    }
+    protected val appearanceView: ConstraintLayout = extensionAppearance
+    private val keyExtensionSurface = KeyExtensionSurface(this)
+    private var modernSurface = false
+    private var extensionAppearanceSignature = 0L
+    private val extensionLocation = IntArray(2)
+
+    val isKeyExtensionActive: Boolean get() = keyExtensionSurface.active
+
+    fun showKeyExtension(host: ViewGroup, labels: Array<String>, textSizePx: Float,
+                         typeface: Typeface?, animate: Boolean): Boolean {
+        if (!modernSurface || usesSpecialBackground() || def.border == Border.Special) return false
+        return keyExtensionSurface.show(host, labels, textSizePx, typeface, animate)
+    }
+
+    fun selectKeyExtension(windowX: Float, windowY: Float): Int? =
+        keyExtensionSurface.select(windowX, windowY)
+
+    fun completeKeyExtension(): Int? = keyExtensionSurface.complete()
+
+    fun dismissKeyExtension(animate: Boolean = true) = keyExtensionSurface.dismiss(animate)
+
+    /** Immediate lifecycle cancellation; unlike completion this never returns a commit. */
+    fun cancelKeyExtension() = keyExtensionSurface.cancel()
+
+    internal fun invalidateKeyExtensionAppearance() {
+        appearanceView.invalidate()
+    }
+
+    internal fun getKeyExtensionLocation(out: IntArray) = appearanceView.getLocationInWindow(out)
+
+    private fun appearanceSignature(view: View): Long {
+        var result = view.width.toLong() * 31 + view.height
+        if (view is TextView) {
+            result = result * 31 + view.textSize.toBits()
+            result = result * 31 + (view.typeface?.hashCode() ?: 0)
+            result = result * 31 + view.text.hashCode()
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) result = result * 31 + appearanceSignature(view.getChildAt(i))
+        }
+        return result
+    }
+
+    internal fun captureKeyExtensionAppearance() {
+        extensionAppearanceSignature = appearanceSignature(appearanceView)
+    }
+
+    internal fun isKeyExtensionAppearanceUnchanged(): Boolean =
+        !appearanceView.isLayoutRequested && extensionAppearanceSignature == appearanceSignature(appearanceView)
+
+    internal fun drawKeyExtension(canvas: Canvas, hostWindowX: Int, hostWindowY: Int) {
+        getKeyExtensionLocation(extensionLocation)
+        val save = canvas.save()
+        canvas.translate((extensionLocation[0] - hostWindowX).toFloat(),
+            (extensionLocation[1] - hostWindowY).toFloat())
+        try {
+            keyExtensionSurface.background.draw(canvas)
+            extensionAppearance.drawContent(canvas)
+            keyExtensionSurface.drawPressOverlay(canvas)
+            keyExtensionSurface.drawLabels(canvas)
+        } finally {
+            canvas.restoreToCount(save)
+        }
     }
 
     init {
@@ -250,6 +329,14 @@ abstract class KeyView(
     private fun applyStandardBackground(theme: Theme) {
         val bkgColor = resolveBackgroundColor(theme, defaultBackgroundColor(theme))
         val borderOrShadowWidth = dp(1)
+        modernSurface = ThemeManager.prefs.keyboardUiStyle.getValue() == KeyboardUiStyle.Modern &&
+            !usesSpecialBackground() && def.border != Border.Special
+        if (modernSurface) {
+            keyExtensionSurface.configure(bkgColor, resolveShadowColor(theme), true, borderStroke)
+            appearanceView.background = keyExtensionSurface.background
+            setupPressHighlight()
+            return
+        }
         appearanceView.background = if (borderStroke) borderedKeyBackgroundDrawable(
             bkgColor, resolveShadowColor(theme),
             radius, borderOrShadowWidth, hMargin, vMargin
@@ -302,7 +389,8 @@ abstract class KeyView(
             StateListDrawable().apply {
                 addState(
                     intArrayOf(android.R.attr.state_pressed),
-                    borderedKeyBackgroundDrawable(
+                    if (modernSurface) keyExtensionSurface.mask(resolveShadowColor(theme), true)
+                    else borderedKeyBackgroundDrawable(
                         Color.TRANSPARENT, resolveShadowColor(theme),
                         radius, dp(2), hMargin, vMargin
                     )
@@ -320,6 +408,7 @@ abstract class KeyView(
     }
 
     private fun highlightMaskDrawable(@ColorInt color: Int): Drawable {
+        if (modernSurface) return keyExtensionSurface.mask(color)
         return if (bordered) insetRadiusDrawable(hMargin, vMargin, radius, color)
         else InsetDrawable(ColorDrawable(color), hMargin, vMargin, hMargin, vMargin)
     }
@@ -336,7 +425,7 @@ abstract class KeyView(
     }
 
     open fun setTextScale(scale: Float) {
-        // default implementation does nothing
+        cancelKeyExtension()
     }
 
     protected open fun onAppearanceLayoutChanged(width: Int, height: Int) {
@@ -344,6 +433,7 @@ abstract class KeyView(
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        if (keyExtensionSurface.active) cancelKeyExtension()
         boundsValid = false
         if (layoutMarginLeft != 0f || layoutMarginRight != 0f) {
             val w = right - left
@@ -361,10 +451,12 @@ abstract class KeyView(
             )
         }
         super.onLayout(changed, left, top, right, bottom)
+        keyExtensionSurface.resize(appearanceView.width, appearanceView.height)
         onAppearanceLayoutChanged(appearanceView.width, appearanceView.height)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL) cancelKeyExtension()
         if (event.actionMasked == MotionEvent.ACTION_DOWN && rippled) {
             onWaterRippleRequest?.invoke(this, event.x, event.y)
         }
@@ -411,7 +503,19 @@ abstract class KeyView(
     /**
      * Update theme without rebuilding view
      */
+    override fun onDetachedFromWindow() {
+        cancelKeyExtension()
+        super.onDetachedFromWindow()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        cancelKeyExtension()
+        super.onConfigurationChanged(newConfig)
+    }
+
     open fun updateTheme(newTheme: Theme) {
+        cancelKeyExtension()
+        modernSurface = false
         theme = newTheme
 
         if (usesSpecialBackground()) {
@@ -489,6 +593,7 @@ open class TextKeyView(
     }
 
     override fun setTextScale(scale: Float) {
+        super.setTextScale(scale)
         if (def is KeyDef.Appearance.Text) {
             mainText.setTextSize(TypedValue.COMPLEX_UNIT_SP, baseMainTextSizeSp * scale)
             mainText.requestLayout()
@@ -724,6 +829,7 @@ class AltTextKeyView(
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
         lastLayoutMode = null
         applyLayout()
     }
@@ -862,6 +968,7 @@ class ImageAltTextKeyView(
     }
 
     override fun setTextScale(scale: Float) {
+        super.setTextScale(scale)
         currentMainTextScale = scale
         altText.setTextSize(TypedValue.COMPLEX_UNIT_SP, baseAltTextSizeSp * scale)
         altText.requestLayout()
@@ -1038,6 +1145,7 @@ class ImageAltTextKeyView(
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
         invalidateTextMetricsCache()
         lastLayoutMode = null
         applyLayout()
@@ -1240,6 +1348,7 @@ class ImageTextKeyView(
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
         updateMargins(newConfig.orientation)
     }
 

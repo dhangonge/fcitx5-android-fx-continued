@@ -79,6 +79,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     private var swipeTotalX = 0
     private var swipeTotalY = 0
     private var gestureConsumed = false
+    private var touchSessionActive = false
 
     var doubleTapEnabled = false
     private var lastClickTime = 0L
@@ -87,6 +88,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     var onDoubleTapListener: ((View) -> Unit)? = null
     var onRepeatListener: ((View) -> Unit)? = null
     var onGestureListener: OnGestureListener? = null
+    var onGestureCancelled: ((View) -> Unit)? = null
 
     var soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard
 
@@ -114,7 +116,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         if (!enabled) {
-            isPressed = false
+            cancelGestures()
         }
     }
 
@@ -127,37 +129,37 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
 
     private fun resetState() {
         touchMovedOutside = false
-        if (longPressEnabled) {
-            longPressTriggered = false
-            longPressJob?.cancel()
-            longPressJob = null
-        }
-        if (repeatEnabled) {
-            repeatStarted = false
-            repeatJob?.cancel()
-            repeatJob = null
-        }
-        if (swipeEnabled) {
-            if (swipeRepeatEnabled) {
-                swipeRepeatTriggered = false
-            }
-            swipeXUnconsumed = 0f
-            swipeYUnconsumed = 0f
-            swipeTotalX = 0
-            swipeTotalY = 0
-            gestureConsumed = false
-        }
+        longPressTriggered = false
+        longPressJob?.cancel()
+        longPressJob = null
+        repeatStarted = false
+        repeatJob?.cancel()
+        repeatJob = null
+        swipeRepeatTriggered = false
+        swipeLastX = -1f
+        swipeLastY = -1f
+        swipeXUnconsumed = 0f
+        swipeYUnconsumed = 0f
+        swipeTotalX = 0
+        swipeTotalY = 0
+        gestureConsumed = false
         // double tap state should be preserved on touch up
     }
 
     fun cancelGestures() {
+        val notify = touchSessionActive
+        touchSessionActive = false
         isPressed = false
         resetState()
-        // reset double tap state on cancel
-        if (doubleTapEnabled) {
-            maybeDoubleTap = false
-            lastClickTime = 0
-        }
+        maybeDoubleTap = false
+        lastClickTime = 0
+        // Clear the session before notifying: popup teardown can cancel us again.
+        if (notify) onGestureCancelled?.invoke(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        cancelGestures()
+        super.onDetachedFromWindow()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -167,16 +169,20 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (!isEnabled) return false
+                if (touchSessionActive) cancelGestures() else resetState()
+                touchSessionActive = true
                 val longPressDelayMillis = longPressDelay.toLong()
                 drawableHotspotChanged(x, y)
                 isPressed = true
                 InputFeedbacks.hapticFeedback(this)
                 InputFeedbacks.soundEffect(soundEffect)
                 dispatchGestureEvent(GestureType.Down, x, y)
+                if (!touchSessionActive) return true
                 if (longPressEnabled) {
                     longPressJob?.cancel()
                     longPressJob = lifecycleScope.launch {
                         delay(longPressDelayMillis)
+                        if (!touchSessionActive || !isEnabled) return@launch
                         if (longPressFeedbackEnabled) {
                             InputFeedbacks.hapticFeedback(this@CustomGestureView, true)
                         }
@@ -187,8 +193,9 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                     repeatJob?.cancel()
                     repeatJob = lifecycleScope.launch {
                         delay(longPressDelayMillis)
+                        if (!touchSessionActive || !isEnabled) return@launch
                         repeatStarted = true
-                        while (isActive && isEnabled) {
+                        while (isActive && isEnabled && touchSessionActive) {
                             val lastTriggerTime = SystemClock.uptimeMillis()
                             onRepeatListener?.invoke(this@CustomGestureView)
                             val t = lastTriggerTime + RepeatInterval - SystemClock.uptimeMillis()
@@ -202,9 +209,12 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (!touchSessionActive) return true
                 isPressed = false
-                InputFeedbacks.hapticFeedback(this, longPress = true, keyUp = true)
+                InputFeedbacks.hapticFeedback(this, keyUp = true)
                 dispatchGestureEvent(GestureType.Up, event.x, event.y)
+                if (!touchSessionActive) return true
+                touchSessionActive = false
                 val shouldPerformClick = !(touchMovedOutside ||
                         longPressTriggered ||
                         repeatStarted ||
@@ -229,6 +239,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (!touchSessionActive) return true
                 if (!isEnabled) return false
                 drawableHotspotChanged(x, y)
                 if (!touchMovedOutside && !pointInView(x, y)) {
@@ -254,7 +265,6 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
-                dispatchGestureEvent(GestureType.Up, event.x, event.y)
                 cancelGestures()
                 return true
             }

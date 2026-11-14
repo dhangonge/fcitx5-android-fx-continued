@@ -84,10 +84,33 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Test native keyboard primitives
+        if: matrix.build_type == 'standard'
+        run: |
+          ./gradlew :app:testFxDebugUnitTest \
+            --tests '*KeyExtensionGeometryTest' \
+            --tests '*KeyExtensionSpringTest' \
+            --tests '*KeyboardUiDefaultsTest'
+
+      - name: Upload native keyboard test reports
+        if: always() && matrix.build_type == 'standard'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-keyboard-tests-${{ matrix.os }}-${{ matrix.abi }}
+          path: |
+            app/build/reports/tests/testFxDebugUnitTest/**
+            app/build/test-results/testFxDebugUnitTest/**
+          if-no-files-found: ignore
+
       - name: Build Standard APK
         if: matrix.build_type == 'standard'
         run: |
           ./gradlew :app:assembleRelease
+
+      - name: Build debug verification APKs
+        if: matrix.build_type == 'standard' && github.ref != 'refs/heads/dev'
+        run: |
+          ./gradlew :app:assembleFxDebug :app:assembleFxDebugAndroidTest
 
       - name: Build Plugins APK
         if: matrix.build_type == 'plugins'
@@ -118,6 +141,16 @@ jobs:
           name: app-standard-${{ matrix.os }}-${{ matrix.abi }}
           path: app/build/outputs/apk/release/*.apk
 
+      - name: Upload debug verification APKs
+        if: matrix.build_type == 'standard' && github.ref != 'refs/heads/dev'
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-native-keyboard-debug-${{ matrix.os }}-${{ matrix.abi }}
+          path: |
+            app/build/outputs/apk/fx/debug/*.apk
+            app/build/outputs/apk/androidTest/fx/debug/*.apk
+          if-no-files-found: error
+
       - name: Upload plugin APKs
         if: matrix.build_type == 'plugins'
         uses: actions/upload-artifact@v7
@@ -133,6 +166,7 @@ jobs:
           path: app/build/outputs/apk/mainline/release/*.apk
 
   nightly_release:
+    if: github.ref == 'refs/heads/dev'
     needs: build_commit
     runs-on: ubuntu-22.04
     steps:

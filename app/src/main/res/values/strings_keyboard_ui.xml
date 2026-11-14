@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-License-Identifier: LGPL-2.1-or-later
+    SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+-->
+<resources>
+    <string name="keyboard_ui_style">Keyboard appearance</string>
+    <string name="keyboard_ui_style_modern">Modern</string>
+    <string name="keyboard_ui_style_classic">Classic</string>
+    <string name="keyboard_motion_settings">Motion</string>
+    <string name="keyboard_motion_master">Enable keyboard motion</string>
+    <string name="keyboard_motion_master_summary">System animation settings and Disable animations always take priority. Turning this off preserves each category selection.</string>
+    <string name="keyboard_motion_panels">Panels</string>
+    <string name="keyboard_motion_candidates">Candidates</string>
+    <string name="keyboard_motion_layout">Layout transitions</string>
+    <string name="keyboard_motion_voice">Voice input</string>
+    <string name="keyboard_motion_material">Material effects</string>
+    <string name="keyboard_motion_material_summary">Reserved for optional material motion. Frosted effects are not enabled by default.</string>
+    <string name="keyboard_motion_tools">Tools</string>
+    <string name="keyboard_motion_scenes">Scene transitions</string>
+</resources>

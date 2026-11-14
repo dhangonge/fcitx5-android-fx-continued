@@ -68,10 +68,11 @@ class ThemeFragment : Fragment() {
 
         viewPager = ViewPager2(this).apply {
             adapter = object : FragmentStateAdapter(this@ThemeFragment) {
-                override fun getItemCount() = 2
+                override fun getItemCount() = 3
                 override fun createFragment(position: Int): Fragment = when (position) {
                     0 -> ThemeListFragment()
-                    else -> ThemeSettingsFragment()
+                    1 -> ThemeSettingsFragment()
+                    else -> MotionSettingsFragment()
                 }
             }
         }
@@ -80,7 +81,8 @@ class ThemeFragment : Fragment() {
             tab.text = getString(
                 when (position) {
                     0 -> R.string.theme
-                    else -> R.string.configure
+                    1 -> R.string.configure
+                    else -> R.string.keyboard_motion_settings
                 }
             )
         }.attach()
