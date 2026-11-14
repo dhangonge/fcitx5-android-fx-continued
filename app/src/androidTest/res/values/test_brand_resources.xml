@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-License-Identifier: LGPL-2.1-or-later
+    SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+-->
+<resources>
+    <!-- Generated debug resValue aliases are also linked into the standalone test APK. -->
+    <item type="mipmap" name="ic_launcher_debug">@android:drawable/ic_menu_edit</item>
+    <item type="mipmap" name="ic_launcher_round_debug">@android:drawable/ic_menu_edit</item>
+    <string name="app_name_debug">Fcitx5 keyboard regression tests</string>
+</resources>
