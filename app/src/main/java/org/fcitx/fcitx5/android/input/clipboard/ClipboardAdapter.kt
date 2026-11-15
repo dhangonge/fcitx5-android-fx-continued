@@ -16,7 +16,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.TextView
 import androidx.core.net.toUri
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
@@ -35,15 +37,6 @@ import org.fcitx.fcitx5.android.utils.pressHighlightDrawable
 import org.fcitx.fcitx5.android.utils.resolveClipboardUriFileName
 import splitties.dimensions.dp
 import splitties.resources.styledColor
-import splitties.views.dsl.core.add
-import splitties.views.dsl.core.horizontalLayout
-import splitties.views.dsl.core.imageView
-import splitties.views.dsl.core.lParams
-import splitties.views.dsl.core.matchParent
-import splitties.views.dsl.core.textView
-import splitties.views.dsl.core.verticalLayout
-import splitties.views.dsl.core.wrapContent
-import splitties.views.setPaddingDp
 import timber.log.Timber
 import kotlin.math.min
 
@@ -289,13 +282,14 @@ abstract class ClipboardAdapter(
         // "editor gone" and hide the keyboard. NOT_FOCUSABLE plus INPUT_METHOD_NEEDED
         // is the platform combination for input-method sub-windows: the popup takes
         // touches and keys without ever becoming the focused window.
-        val content = verticalLayout {
+        val content = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(0, dp(4), 0, dp(4))
             rows.forEach { row ->
-                add(horizontalLayout {
+                addView(LinearLayout(ctx).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     background = pressHighlightDrawable(theme.keyPressHighlightColor)
-                    setPaddingDp(8, 0, 16, 0)
+                    setPadding(dp(8), 0, dp(16), 0)
                     isClickable = true
                     isFocusable = false
                     setOnClickListener {
@@ -304,21 +298,23 @@ abstract class ClipboardAdapter(
                             Timber.w(it, "menu action failed for a clipboard entry")
                         }
                     }
-                    add(imageView {
+                    addView(ImageView(ctx).apply {
                         scaleType = ImageView.ScaleType.CENTER
-                        gravity = Gravity.CENTER
                         setColorFilter(iconTint)
                         setImageResource(row.icon)
-                    }, lParams(dp(40), matchParent))
-                    add(textView {
+                    }, LinearLayout.LayoutParams(dp(40), LinearLayout.LayoutParams.MATCH_PARENT))
+                    addView(TextView(ctx).apply {
                         text = ctx.getString(row.title)
                         textSize = 16f
                         setTextColor(ctx.styledColor(android.R.attr.textColorPrimary))
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL
                         isSingleLine = true
                         ellipsize = TextUtils.TruncateAt.END
-                    }, lParams(wrapContent, matchParent))
-                }, lParams(wrapContent, dp(48)))
+                    }, LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.MATCH_PARENT
+                    ))
+                }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(48)))
             }
         }
         // One shared width for all rows, sized by the widest label like ListPopupWindow.
@@ -326,12 +322,13 @@ abstract class ClipboardAdapter(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
+        // The vertical padding around the rows has to fit inside the window too.
         val menuWidth = min(content.measuredWidth, dp(320))
-        val menuHeight = dp(48) * rows.size
-        for (i in rows.indices) {
-            content.getChildAt(i).layoutParams = ViewGroup.LayoutParams(menuWidth, dp(48))
+        val menuHeight = dp(48) * rows.size + dp(8)
+        for (i in 0 until content.childCount) {
+            content.getChildAt(i).layoutParams = LinearLayout.LayoutParams(menuWidth, dp(48))
         }
-        content.layoutParams = ViewGroup.LayoutParams(menuWidth, menuHeight)
+        content.layoutParams = LinearLayout.LayoutParams(menuWidth, menuHeight)
 
         popupMenu?.dismiss()
         val popup = PopupWindow(content, menuWidth, menuHeight).apply {
@@ -342,7 +339,7 @@ abstract class ClipboardAdapter(
             val attrs = ctx.obtainStyledAttributes(intArrayOf(android.R.attr.popupBackground))
             val background = attrs.getDrawable(0)
             attrs.recycle()
-            setBackgroundDrawable(background ?: ColorDrawable(theme.keyBackgroundColor))
+            setBackgroundDrawable(background ?: ColorDrawable(theme.popupBackgroundColor))
             elevation = dp(4).toFloat()
             setOnDismissListener {
                 if (it === popupMenu) popupMenu = null
