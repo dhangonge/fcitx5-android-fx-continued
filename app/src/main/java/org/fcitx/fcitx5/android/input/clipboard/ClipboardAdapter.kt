@@ -323,10 +323,10 @@ abstract class ClipboardAdapter(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         // The vertical padding around the rows has to fit inside the window too.
-        val menuWidth = min(content.measuredWidth, dp(320))
-        val menuHeight = dp(48) * rows.size + dp(8)
+        val menuWidth = min(content.measuredWidth, ctx.dp(320))
+        val menuHeight = ctx.dp(48) * rows.size + ctx.dp(8)
         for (i in 0 until content.childCount) {
-            content.getChildAt(i).layoutParams = LinearLayout.LayoutParams(menuWidth, dp(48))
+            content.getChildAt(i).layoutParams = LinearLayout.LayoutParams(menuWidth, ctx.dp(48))
         }
         content.layoutParams = LinearLayout.LayoutParams(menuWidth, menuHeight)
 
@@ -340,9 +340,9 @@ abstract class ClipboardAdapter(
             val background = attrs.getDrawable(0)
             attrs.recycle()
             setBackgroundDrawable(background ?: ColorDrawable(theme.popupBackgroundColor))
-            elevation = dp(4).toFloat()
+            elevation = ctx.dp(4).toFloat()
             setOnDismissListener {
-                if (it === popupMenu) popupMenu = null
+                if (this === popupMenu) popupMenu = null
             }
         }
         popupMenu = popup
