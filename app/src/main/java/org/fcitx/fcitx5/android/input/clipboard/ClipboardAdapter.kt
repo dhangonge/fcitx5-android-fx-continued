@@ -5,13 +5,18 @@
 package org.fcitx.fcitx5.android.input.clipboard
 
 import android.graphics.Bitmap
+import android.graphics.drawable.ColorDrawable
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.text.TextUtils
 import android.util.LruCache
 import android.util.Patterns
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
-import android.widget.PopupMenu
+import android.widget.ImageView
+import android.widget.PopupWindow
 import androidx.core.net.toUri
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
@@ -25,11 +30,20 @@ import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.utils.DeviceUtil
-import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.loadThumbnailBitmap
+import org.fcitx.fcitx5.android.utils.pressHighlightDrawable
 import org.fcitx.fcitx5.android.utils.resolveClipboardUriFileName
+import splitties.dimensions.dp
 import splitties.resources.styledColor
+import splitties.views.dsl.core.add
+import splitties.views.dsl.core.horizontalLayout
+import splitties.views.dsl.core.imageView
+import splitties.views.dsl.core.lParams
+import splitties.views.dsl.core.matchParent
+import splitties.views.dsl.core.textView
+import splitties.views.dsl.core.verticalLayout
+import splitties.views.dsl.core.wrapContent
+import splitties.views.setPaddingDp
 import timber.log.Timber
 import kotlin.math.min
 
@@ -139,7 +153,7 @@ abstract class ClipboardAdapter(
             entry.loadThumbnailBitmap(context)
     }
 
-    private var popupMenu: PopupMenu? = null
+    private var popupMenu: PopupWindow? = null
 
     class ViewHolder(val entryUi: ClipboardEntryUi) : RecyclerView.ViewHolder(entryUi.root) {
         var thumbnailJob: Job? = null
@@ -221,87 +235,135 @@ abstract class ClipboardAdapter(
     }
 
     private fun showEntryMenu(
-        anchor: android.view.View,
+        anchor: View,
         entry: ClipboardEntry,
         linkUri: Uri?,
         searchQuery: String?,
         dialNumber: String?,
         splittableText: String?
     ) {
-        val popup = PopupMenu(anchor.context, anchor)
-        val menu = popup.menu
-        val iconTint = anchor.context.styledColor(android.R.attr.colorControlNormal)
+        val ctx = anchor.context
+        val iconTint = ctx.styledColor(android.R.attr.colorControlNormal)
         val isUriEntry = entry.isUriEntry()
         val imageUri = entry.viewableImageUri()
 
-        if (!isUriEntry) {
-            menu.item(android.R.string.paste, R.drawable.ic_baseline_content_paste_24, iconTint) {
-                onPaste(entry)
+        val rows = buildList {
+            if (!isUriEntry) {
+                add(EntryMenuRow(android.R.string.paste, R.drawable.ic_baseline_content_paste_24) { onPaste(entry) })
+            }
+            if (entry.pinned) {
+                add(EntryMenuRow(R.string.remove_from_favorites, R.drawable.ic_outline_push_pin_24) { onUnpin(entry.id) })
+            } else {
+                add(EntryMenuRow(R.string.add_to_favorites, R.drawable.ic_baseline_push_pin_24) { onPin(entry.id) })
+            }
+            if (!isUriEntry) {
+                add(EntryMenuRow(R.string.edit, R.drawable.ic_baseline_edit_24) { onEdit(entry.id) })
+            } else if (imageUri == null) {
+                add(EntryMenuRow(R.string.open_link, R.drawable.ic_baseline_language_24) { onOpenFile(entry) })
+            }
+            add(EntryMenuRow(R.string.share, R.drawable.ic_baseline_share_24) { onShare(entry) })
+            if (shouldShowUpload(entry)) {
+                add(EntryMenuRow(R.string.upload, R.drawable.ic_baseline_send_24) { onUpload(entry) })
+            }
+            if (splittableText != null) {
+                add(EntryMenuRow(R.string.split_words, R.drawable.ic_baseline_spellcheck_24) { onSplitText(splittableText) })
+            }
+            imageUri?.let { uri ->
+                add(EntryMenuRow(R.string.view_image, R.drawable.ic_baseline_image_24) { onViewImage(uri) })
+            }
+            if (linkUri != null) {
+                add(EntryMenuRow(R.string.open_link, R.drawable.ic_baseline_language_24) { onOpenLink(linkUri) })
+            }
+            if (searchQuery != null) {
+                add(EntryMenuRow(R.string.search, R.drawable.ic_baseline_search_24) { onSearch(searchQuery) })
+            }
+            if (dialNumber != null) {
+                add(EntryMenuRow(R.string.dial, R.drawable.ic_baseline_call_24) { onDial(dialNumber) })
+            }
+            add(EntryMenuRow(R.string.delete, R.drawable.ic_baseline_delete_24) { onDelete(entry.id) })
+        }
+
+        // Our own window instead of PopupMenu's: the platform menu makes its window
+        // focusable, which drags focus away from the host editor. When the menu closes,
+        // some hosts (Flutter webviews among them) treat the momentary focus loss as
+        // "editor gone" and hide the keyboard. NOT_FOCUSABLE plus INPUT_METHOD_NEEDED
+        // is the platform combination for input-method sub-windows: the popup takes
+        // touches and keys without ever becoming the focused window.
+        val content = verticalLayout {
+            setPadding(0, dp(4), 0, dp(4))
+            rows.forEach { row ->
+                add(horizontalLayout {
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = pressHighlightDrawable(theme.keyPressHighlightColor)
+                    setPaddingDp(8, 0, 16, 0)
+                    isClickable = true
+                    isFocusable = false
+                    setOnClickListener {
+                        popupMenu?.dismiss()
+                        runCatching(row.action).onFailure {
+                            Timber.w(it, "menu action failed for a clipboard entry")
+                        }
+                    }
+                    add(imageView {
+                        scaleType = ImageView.ScaleType.CENTER
+                        gravity = Gravity.CENTER
+                        setColorFilter(iconTint)
+                        setImageResource(row.icon)
+                    }, lParams(dp(40), matchParent))
+                    add(textView {
+                        text = ctx.getString(row.title)
+                        textSize = 16f
+                        setTextColor(ctx.styledColor(android.R.attr.textColorPrimary))
+                        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                        isSingleLine = true
+                        ellipsize = TextUtils.TruncateAt.END
+                    }, lParams(wrapContent, matchParent))
+                }, lParams(wrapContent, dp(48)))
             }
         }
-        if (entry.pinned) {
-            menu.item(R.string.remove_from_favorites, R.drawable.ic_outline_push_pin_24, iconTint) {
-                onUnpin(entry.id)
-            }
-        } else {
-            menu.item(R.string.add_to_favorites, R.drawable.ic_baseline_push_pin_24, iconTint) {
-                onPin(entry.id)
-            }
+        // One shared width for all rows, sized by the widest label like ListPopupWindow.
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val menuWidth = min(content.measuredWidth, dp(320))
+        val menuHeight = dp(48) * rows.size
+        for (i in rows.indices) {
+            content.getChildAt(i).layoutParams = ViewGroup.LayoutParams(menuWidth, dp(48))
         }
-        if (!isUriEntry) {
-            menu.item(R.string.edit, R.drawable.ic_baseline_edit_24, iconTint) {
-                onEdit(entry.id)
-            }
-        } else if (imageUri == null) {
-            menu.item(R.string.open_link, R.drawable.ic_baseline_language_24, iconTint) {
-                onOpenFile(entry)
-            }
-        }
-        menu.item(R.string.share, R.drawable.ic_baseline_share_24, iconTint) {
-            onShare(entry)
-        }
-        if (shouldShowUpload(entry)) {
-            menu.item(R.string.upload, R.drawable.ic_baseline_send_24, iconTint) {
-                onUpload(entry)
-            }
-        }
-        if (splittableText != null) {
-            menu.item(R.string.split_words, R.drawable.ic_baseline_spellcheck_24, iconTint) {
-                onSplitText(splittableText)
-            }
-        }
-        imageUri?.let { uri ->
-            menu.item(R.string.view_image, R.drawable.ic_baseline_image_24, iconTint) {
-                onViewImage(uri)
-            }
-        }
-        if (linkUri != null) {
-            menu.item(R.string.open_link, R.drawable.ic_baseline_language_24, iconTint) {
-                onOpenLink(linkUri)
-            }
-        }
-        if (searchQuery != null) {
-            menu.item(R.string.search, R.drawable.ic_baseline_search_24, iconTint) {
-                onSearch(searchQuery)
-            }
-        }
-        if (dialNumber != null) {
-            menu.item(R.string.dial, R.drawable.ic_baseline_call_24, iconTint) {
-                onDial(dialNumber)
-            }
-        }
-        menu.item(R.string.delete, R.drawable.ic_baseline_delete_24, iconTint) {
-            onDelete(entry.id)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !DeviceUtil.isSamsungOneUI && !DeviceUtil.isFlyme) {
-            popup.setForceShowIcon(true)
-        }
-        popup.setOnDismissListener {
-            if (it === popupMenu) popupMenu = null
-        }
+        content.layoutParams = ViewGroup.LayoutParams(menuWidth, menuHeight)
+
         popupMenu?.dismiss()
+        val popup = PopupWindow(content, menuWidth, menuHeight).apply {
+            isFocusable = false
+            isOutsideTouchable = true
+            inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
+            // Outside-touch dismissal is only armed while a background is set.
+            val attrs = ctx.obtainStyledAttributes(intArrayOf(android.R.attr.popupBackground))
+            val background = attrs.getDrawable(0)
+            attrs.recycle()
+            setBackgroundDrawable(background ?: ColorDrawable(theme.keyBackgroundColor))
+            elevation = dp(4).toFloat()
+            setOnDismissListener {
+                if (it === popupMenu) popupMenu = null
+            }
+        }
         popupMenu = popup
-        popup.show()
+
+        val screenWidth = ctx.resources.displayMetrics.widthPixels
+        val screenHeight = ctx.resources.displayMetrics.heightPixels
+        val location = IntArray(2)
+        anchor.getLocationOnScreen(location)
+        var x = location[0]
+        var y = location[1] + anchor.height
+        if (y + menuHeight > screenHeight && location[1] > menuHeight) {
+            // No room below the anchor: open above it instead of getting clipped.
+            y = location[1] - menuHeight
+        }
+        if (x + menuWidth > screenWidth) {
+            x = (location[0] + anchor.width - menuWidth).coerceAtLeast(0)
+        }
+        popup.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
     }
 
     override fun onViewRecycled(holder: ViewHolder) {
@@ -403,3 +465,9 @@ abstract class ClipboardAdapter(
     }
 
 }
+
+private class EntryMenuRow(
+    val title: Int,
+    val icon: Int,
+    val action: () -> Unit
+)
